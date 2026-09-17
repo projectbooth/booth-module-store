@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "booth-module-store.fullname" . }}
+  labels:
+    {{- include "booth-module-store.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "booth-module-store.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "booth-module-store.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "booth-module-store.serviceAccountName" . }}
+      containers:
+        - name: booth-module-store
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: BOOTH_HTTP_ADDR
+              value: ":8080"
+            - name: BOOTH_CORE_BASE_URL
+              value: {{ .Values.core.baseUrl | quote }}
+            - name: BOOTH_OIDC_ISSUER_URL
+              value: {{ .Values.oidc.issuerUrl | quote }}
+            - name: BOOTH_OIDC_CLIENT_ID
+              value: {{ .Values.oidc.clientId | quote }}
+            - name: BOOTH_OIDC_REQUIRE_AUDIENCE
+              value: {{ .Values.oidc.requireAudience | quote }}
+            {{- if .Values.bundledCatalogPath }}
+            - name: BOOTH_MODULE_STORE_BUNDLED_CATALOG_PATH
+              value: {{ .Values.bundledCatalogPath | quote }}
+            {{- end }}
+            {{- if .Values.registries }}
+            - name: BOOTH_MODULE_STORE_REGISTRIES
+              value: {{ join "," .Values.registries | quote }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

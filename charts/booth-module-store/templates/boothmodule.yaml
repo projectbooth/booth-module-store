@@ -1,0 +1,28 @@
+# Registers booth-module-store with booth-core's module registry (ADR 0019): the
+# BoothModule CRD is the only thing core reads to know this module exists
+# (contracts/module-manifest.md). Uses booth-core's own CRD type
+# (booth.projectbooth.io/v1alpha1), which that chart installs — not redefined here.
+#
+# navGroup and navPath are deliberately omitted: booth-module-store renders at the
+# shell-level "Module Store" slot (ADR 0027), the same shell-level treatment as Home
+# and Settings, not one of the Build/View/Manage nav sections
+# (contracts/module-manifest.md: "Home, Module Store, and the user profile/Settings
+# entry are shell-level, not modules, and don't use this field").
+apiVersion: booth.projectbooth.io/v1alpha1
+kind: BoothModule
+metadata:
+  name: module-store
+  labels:
+    {{- include "booth-module-store.labels" . | nindent 4 }}
+spec:
+  id: module-store
+  displayName: Module Store
+  icon: shopping-bag
+  version: {{ .Chart.AppVersion | quote }}
+  contractVersion: "0.1.0"
+  hasOwnUi: true
+  uiIntegrationMode: native
+  healthCheckPath: /healthz
+  serviceRef:
+    name: {{ include "booth-module-store.fullname" . }}
+    port: {{ .Values.service.port }}

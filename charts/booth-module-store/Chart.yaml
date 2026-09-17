@@ -1,0 +1,10 @@
+apiVersion: v2
+name: booth-module-store
+description: >
+  Project Booth's mandatory Module Store: the catalog of installable modules (bundled +
+  optional external registries) and the browsing/install UI, calling booth-core's
+  install/uninstall API.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/projectbooth/booth-module-store

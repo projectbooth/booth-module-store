@@ -1,0 +1,12 @@
+# Go
+/bin/
+*.tsbuildinfo
+
+# Node / frontend
+web/node_modules/
+web/dist/
+web/*.tsbuildinfo
+
+# Editors / OS
+.DS_Store
+*.swp

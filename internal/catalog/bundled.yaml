@@ -1,0 +1,123 @@
+# Bundled catalog seed data (ADR 0027): every module in ../../../booth-architecture's
+# MODULE_REGISTRY.md, minus the mandatory/foundation/meta rows (booth-architecture,
+# booth-design, booth-core, booth-module-store itself, booth-e2e) — those aren't
+# something a user installs from the Module Store, the same way you don't "install"
+# the shell that's showing you the store.
+#
+# This must work with zero network access (ADR 0027) — it ships as part of this
+# repo's own release and requires no external registry.
+#
+# `chart` is intentionally empty for every entry below: as of this seed, none of these
+# module repos have published a Helm chart yet (MODULE_REGISTRY.md status: "not
+# started" for all of them). Attempting to install an entry with no chart returns a
+# clear error rather than guessing at a chart location — see internal/api's install
+# handler. Fill in `chart` for a module once its repo publishes a real chart reference.
+#
+# `category` and `manifestPreview` are this repo's own best-effort classification,
+# derived from ARCHITECTURE.md/MODULE_REGISTRY.md/ui-integration.md — not yet confirmed
+# by each module's own agent. manifestPreview is explicitly informational-only per
+# contracts/module-registry-protocol.md; the authoritative manifest is each module's own
+# BoothModule CRD once installed.
+#
+# Keeping this file in sync with MODULE_REGISTRY.md as new modules are added is a
+# manual step for now (ADR 0027's consequences section, flagged as v1 automation
+# opportunity) — see docs/bundled-catalog-sync.md for a proposed approach.
+
+- id: storage
+  displayName: Storage
+  icon: drive
+  description: S3-compatible, filesystem, Azure Blob, and GCS backends for platform data.
+  category: data
+  manifestPreview:
+    hasOwnUi: true
+    uiIntegrationMode: native
+    navGroup: manage
+
+- id: catalog
+  displayName: Catalog
+  icon: book
+  description: Browsable, lineage-tracked catalog of datasets, code, and dashboards.
+  category: data
+  manifestPreview:
+    hasOwnUi: true
+    uiIntegrationMode: native
+    navGroup: view
+
+- id: pipeline
+  displayName: Pipeline
+  icon: workflow
+  description: Dagster-backed pipeline engine with a graphical DAG builder.
+  category: build
+  manifestPreview:
+    hasOwnUi: true
+    uiIntegrationMode: native
+    navGroup: build
+
+- id: notebooks
+  displayName: Notebooks
+  icon: notebook
+  description: JupyterHub-backed notebooks with per-user isolated kernels.
+  category: build
+  manifestPreview:
+    hasOwnUi: true
+    uiIntegrationMode: iframe-proxy
+    navGroup: build
+
+- id: superset
+  displayName: Superset
+  icon: bar-chart
+  description: Point-and-click BI dashboards, powered by Apache Superset.
+  category: dashboards
+  manifestPreview:
+    hasOwnUi: true
+    uiIntegrationMode: iframe-proxy
+    navGroup: build
+
+- id: metabase
+  displayName: Metabase
+  icon: bar-chart
+  description: Point-and-click BI dashboards, powered by Metabase.
+  category: dashboards
+  manifestPreview:
+    hasOwnUi: true
+    uiIntegrationMode: iframe-proxy
+    navGroup: build
+
+- id: streamlit
+  displayName: Streamlit
+  icon: app-window
+  description: Code-first dashboards and apps, powered by Streamlit.
+  category: dashboards
+  manifestPreview:
+    hasOwnUi: true
+    uiIntegrationMode: iframe-proxy
+    navGroup: build
+
+- id: api
+  displayName: API
+  icon: plug
+  description: Generated REST API access to platform data.
+  category: integration
+  manifestPreview:
+    hasOwnUi: false
+    navGroup: manage
+
+- id: spark
+  displayName: Spark
+  icon: zap
+  description: Standalone Apache Spark compute, with no dependency on other modules.
+  category: compute
+  manifestPreview:
+    hasOwnUi: true
+    uiIntegrationMode: iframe-proxy
+    navGroup: manage
+
+- id: logging
+  displayName: Logging
+  icon: file-text
+  description: Log search and filtering, backed by Loki, with an optional Grafana view.
+  category: observability
+  manifestPreview:
+    hasOwnUi: true
+    uiIntegrationMode: native
+    navGroup: manage

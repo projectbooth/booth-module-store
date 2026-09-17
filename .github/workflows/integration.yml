@@ -1,0 +1,70 @@
+name: Integration
+
+# Layer 3 (contracts/testing-strategy.md, ADR 0024): real-cluster integration tests.
+# Runs on merge to main and nightly, not on every push/PR. See test/integration/README.md
+# for what this covers today and what's intentionally still missing (the full
+# booth-module-store -> booth-core install-trigger scenario, blocked on booth-core
+# publishing a pinned reference build per the testing-strategy contract).
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 8 * * *" # nightly
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  kind-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: helm/kind-action@v1
+        with:
+          cluster_name: booth-module-store-ci
+
+      - uses: azure/setup-helm@v4
+
+      - name: Build and load booth-module-store image
+        run: |
+          docker build -t booth-module-store:ci .
+          kind load docker-image booth-module-store:ci --name booth-module-store-ci
+
+      - name: Install vendored BoothModule CRD (see test/integration/fixtures)
+        run: kubectl apply -f test/integration/fixtures/boothmodule-crd.yaml
+
+      - name: Install booth-module-store chart
+        working-directory: charts/booth-module-store
+        run: |
+          helm install booth-module-store . \
+            --namespace booth-system --create-namespace \
+            --set image.repository=booth-module-store \
+            --set image.tag=ci \
+            --set image.pullPolicy=Never \
+            --set oidc.issuerUrl=https://accounts.google.com \
+            --set oidc.clientId=booth-module-store-ci \
+            --set oidc.requireAudience=false \
+            --wait --timeout 5m
+
+      - name: Verify rollout and registration
+        run: |
+          kubectl -n booth-system get pods
+          kubectl -n booth-system rollout status deployment/booth-module-store --timeout=120s
+          kubectl -n booth-system get boothmodules.booth.projectbooth.io module-store -o yaml
+
+      - name: Verify /healthz through the Service
+        run: |
+          kubectl -n booth-system run curl-check --rm -i --restart=Never --image=curlimages/curl -- \
+            curl -sf http://booth-module-store.booth-system.svc.cluster.local:8080/healthz
+
+      - name: Dump logs on failure
+        if: failure()
+        run: |
+          kubectl -n booth-system get all
+          kubectl -n booth-system logs deployment/booth-module-store --tail=200 || true

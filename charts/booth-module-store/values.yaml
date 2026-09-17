@@ -1,0 +1,44 @@
+# Default values for booth-module-store. See docs/decisions/ for the reasoning behind
+# the interim calls this chart bakes in.
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/projectbooth/booth-module-store
+  tag: "" # defaults to Chart.appVersion; overridden by CI to the published tag (contracts/testing-strategy.md)
+  pullPolicy: IfNotPresent
+
+service:
+  port: 8080
+
+# Mandatory module, installed once per deployment (ADR 0027), into its own namespace by
+# default.
+namespaceOverride: ""
+
+oidc:
+  # Required: same OIDC issuer/client every module verifies against independently
+  # (core-platform-api.md's defense-in-depth requirement). Left empty by default.
+  issuerUrl: ""
+  clientId: ""
+  requireAudience: true
+
+core:
+  # Where booth-core's own API lives (GET /api/modules, install/uninstall) — the
+  # in-cluster Service DNS name by default.
+  baseUrl: "http://booth-core"
+
+# Bundled catalog override (ADR 0027's "a deployment can extend the bundled list via
+# its own config for private/custom modules"). Empty means: use this chart's embedded
+# seed data only. Set to a ConfigMap-mounted path to layer in your own entries instead.
+bundledCatalogPath: ""
+
+# External registry connections (contracts/module-registry-protocol.md). Off/empty by
+# default per ADR 0027 — no official Project-Booth-operated registry is assumed to
+# exist, and a fresh air-gapped deployment must work with nothing configured here.
+registries: []
+
+resources: {}
+
+serviceAccount:
+  create: true
+  name: ""
