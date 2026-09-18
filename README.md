@@ -21,21 +21,20 @@ module — see `../booth-architecture`'s ADR 0027 and `agent-briefs/module-store
   only (see that file's own comment), not something that ships.
 - **Deployment**: one Helm chart (`charts/booth-module-store`), per ADR 0003.
 
-## The native-module mount contract (ADR 0030/0031)
+## The native-module mount contract (ADR 0030/0031/0033)
 
-`ModuleStoreApp` takes four required props — `workspace`/`role`/`theme` pinned into
-`contracts/ui-integration.md` by ADR 0031, plus `accessToken` (agreed with
-`booth-design`'s agent, still flagged as a candidate for that same contract — see
-`docs/decisions/0004-native-module-access-token-prop.md`):
+`ModuleStoreApp` takes four required props, all pinned into `contracts/ui-integration.md`:
 
 ```ts
 interface ModuleStoreAppProps {
   workspace: string; // active workspace slug (ADR 0025) — required for every API call
   role: "owner" | "editor" | "viewer"; // gates install/uninstall actions in this UI only
   theme: "dark" | "light";
-  accessToken: string; // bearer token from booth-design's OIDC PKCE flow (ADR 0032) —
-                        // booth-core has no cookie/session support, this is required
-                        // on every API call
+  getAccessToken: () => string | null; // booth-design's current bearer token (ADR 0032's
+                        // OIDC PKCE flow), or null if not yet authenticated / logged out.
+                        // Called fresh immediately before every request, never cached —
+                        // a plain value prop would go stale across a silent token
+                        // refresh with no render guaranteed to catch it (ADR 0033).
 }
 ```
 
@@ -49,7 +48,7 @@ components/utilities-only and additive.
 ```
 cmd/module-store/        entrypoint
 internal/catalog/        two-tier catalog: bundled seed data, merge logic, external
-                          registry client, chartRef translation
+                          registry client (chartRef passed through unparsed, ADR 0028)
 internal/coreclient/     HTTP client for booth-core's install/uninstall/list API
 internal/auth/           independent JWT re-verification (defense in depth)
 internal/api/            this module's own HTTP surface, reached via booth-core's
@@ -59,8 +58,8 @@ charts/booth-module-store/  Helm chart, including this module's own BoothModule
 web/                      native-mode frontend (see web/README-equivalent comments in
                           ModuleStoreApp.tsx and devshell/DevShell.tsx)
 docs/decisions/           flagged cross-cutting questions this repo hit while
-                          building (see below) — most now resolved by an
-                          architecture-level ADR, 0004 still open
+                          building (see below) — all now resolved by an
+                          architecture-level ADR
 docs/bundled-catalog-sync.md   proposed (not yet built) approach for keeping the
                           bundled catalog in sync with MODULE_REGISTRY.md over time
 test/contract/           validates this repo's own BoothModule manifest against
@@ -73,25 +72,25 @@ test/integration/        real-cluster (kind) smoke test — see its own README f
 
 - **[0001](docs/decisions/0001-chartref-translation-gap.md)** — the `chartRef`
   string-vs-structured-object mismatch between `contracts/module-registry-protocol.md`
-  and `booth-core`'s real install API. **Resolved at the architecture level** by ADR
-  0028: `booth-core` will grow `chartRef`-string support and this repo will retire its
-  own interim parser (`internal/catalog/chartref.go`) once that ships — not done yet,
-  the interim parser stays in place until then.
+  and `booth-core`'s real install API. **Resolved** by ADR 0028: `booth-core` now
+  accepts a raw `chartRef` string directly. This repo's own interim parser
+  (`internal/catalog/chartref.go`) has been retired — registry entries pass
+  `chartRef`/`chartVersion` straight through unparsed (`internal/coreclient`).
 - **[0002](docs/decisions/0002-install-namespace-convention.md)** — no contract
-  specified what namespace a module installs into. **Resolved at the architecture
-  level** by ADR 0029: there is deliberately no fleet-wide default, ever — every
-  caller must supply one explicitly. This repo's own silent `booth-<module-id>`
-  fallback has been removed accordingly (see "Namespace confirmation" below).
+  specified what namespace a module installs into. **Resolved** by ADR 0029: there is
+  deliberately no fleet-wide default, ever — every caller must supply one explicitly.
+  This repo's own silent `booth-<module-id>` fallback has been removed accordingly
+  (see "Namespace confirmation" below).
 - **[0003](docs/decisions/0003-native-module-props-contract.md)** — the concrete
   native-module mount props contract (workspace/role/theme), agreed with
-  `booth-design`'s agent per ADR 0030. **Resolved at the architecture level** by ADR
-  0031: pinned into `contracts/ui-integration.md` as the standard every native module
-  follows.
-- **[0004](docs/decisions/0004-native-module-access-token-prop.md)** — extending that
-  contract with `accessToken`, after wiring this package into `booth-design` for real
-  surfaced that `booth-core` has no cookie/session support at all (ADR 0032) and this
-  client was never sending a bearer token. **Still open**: whether `accessToken` joins
-  `contracts/ui-integration.md`'s `NativeModuleProps` alongside the other three fields.
+  `booth-design`'s agent per ADR 0030. **Resolved** by ADR 0031: pinned into
+  `contracts/ui-integration.md` as the standard every native module follows.
+- **[0004](docs/decisions/0004-native-module-access-token-prop.md)** — a first (wrong)
+  proposal to add `accessToken: string`. **Resolved, differently than proposed**, by
+  ADR 0033: after wiring this package into `booth-design` against a real `booth-core`
+  (which has no cookie/session support at all, ADR 0032) hit a 401, the fix that
+  landed is `getAccessToken: () => string | null` — a callback, not a value, so it
+  can't go stale across a silently-refreshed token.
 
 ## Namespace confirmation (ADR 0029)
 

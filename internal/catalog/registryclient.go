@@ -33,9 +33,10 @@ func NewRegistryClient() *RegistryClient {
 // Fetch calls GET <registryURL>/v0/modules and returns its listing translated into
 // catalog Entry values, each labeled with this registry as its Source (ADR 0027).
 //
-// An entry whose chartRef this repo's interim translation (chartref.go) can't parse is
-// kept in the result — a user should still see it exists — but with an empty Chart, so
-// the UI can show it as present-but-not-installable rather than silently dropping it.
+// chartRef/chartVersion are passed through verbatim, unparsed (ADR 0028) — booth-core's
+// install API now accepts them directly and is the one place that parsing lives; this
+// repo doesn't interpret or validate the chart itself beyond passing it through, per
+// contracts/module-registry-protocol.md's original intent.
 func (c *RegistryClient) Fetch(ctx context.Context, registryURL string) ([]Entry, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, registryURL+"/v0/modules", nil)
 	if err != nil {
@@ -62,24 +63,17 @@ func (c *RegistryClient) Fetch(ctx context.Context, registryURL string) ([]Entry
 		if m.ID == "" {
 			continue
 		}
-		entry := Entry{
+		entries = append(entries, Entry{
 			ID:              m.ID,
 			DisplayName:     m.DisplayName,
 			Icon:            m.Icon,
 			Description:     m.Description,
 			Category:        m.Category,
 			ManifestPreview: m.ManifestPreview,
+			ChartRef:        m.ChartRef,
+			ChartVersion:    m.ChartVersion,
 			Source:          Source{Kind: SourceRegistry, Name: registryURL},
-		}
-
-		if chart, err := ParseRegistryChartRef(m.ChartRef, m.ChartVersion); err == nil {
-			entry.Chart = chart
-		}
-		// A chartRef this translation can't parse is not treated as fatal for the
-		// whole registry fetch — the entry is still listed, just not installable
-		// (Chart stays zero) until docs/decisions/0001 is resolved.
-
-		entries = append(entries, entry)
+		})
 	}
 
 	return entries, nil

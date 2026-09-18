@@ -29,8 +29,8 @@ func TestRegistryClient_Fetch(t *testing.T) {
 				}
 			},
 			{
-				"id": "unparseable-chart",
-				"displayName": "Unparseable",
+				"id": "arbitrary-scheme-chart",
+				"displayName": "Not OCI",
 				"chartRef": "https://not-oci.example.com/chart",
 				"chartVersion": "1.0.0"
 			}
@@ -51,17 +51,23 @@ func TestRegistryClient_Fetch(t *testing.T) {
 	if first.ID != "acme-forecast" || first.Source.Kind != SourceRegistry || first.Source.Name != srv.URL {
 		t.Errorf("unexpected first entry: %+v", first)
 	}
-	wantChart := ChartRef{RepoURL: "oci://registry.example.com/charts", ChartName: "acme-forecast", Version: "1.4.2"}
-	if first.Chart != wantChart {
-		t.Errorf("Chart = %+v, want %+v", first.Chart, wantChart)
+	// ADR 0028: chartRef/chartVersion pass through verbatim, unparsed — booth-core is
+	// the one place that interprets them now, not this repo.
+	if first.ChartRef != "oci://registry.example.com/charts/acme-forecast" || first.ChartVersion != "1.4.2" {
+		t.Errorf("ChartRef/ChartVersion not passed through verbatim: %+v", first)
+	}
+	if !first.Chart.IsZero() {
+		t.Errorf("expected structured Chart to stay zero for a registry entry, got %+v", first.Chart)
 	}
 	if !first.ManifestPreview.HasOwnUI || first.ManifestPreview.UIIntegrationMode != "iframe-proxy" {
 		t.Errorf("unexpected manifestPreview: %+v", first.ManifestPreview)
 	}
 
+	// This repo doesn't validate the chartRef scheme at all any more (ADR 0028) — any
+	// string is passed through as-is, whether or not booth-core will accept it.
 	second := entries[1]
-	if !second.Chart.IsZero() {
-		t.Errorf("expected unparseable chartRef to leave Chart zero, got %+v", second.Chart)
+	if second.ChartRef != "https://not-oci.example.com/chart" {
+		t.Errorf("expected non-oci chartRef to still pass through verbatim, got %+v", second)
 	}
 }
 

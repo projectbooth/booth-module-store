@@ -5,13 +5,11 @@
 // installed-module registry for status.
 package catalog
 
-// ChartRef is the structured chart location booth-core's install API actually expects
-// (see coreclient.InstallRequest) — either a local path or a repo-hosted chart resolved
-// by RepoURL+ChartName+Version, the same shape `helm install --repo ...` uses.
-//
-// This is deliberately NOT the same shape as module-registry-protocol.md's single
-// `chartRef` string field. See chartref.go's doc comment for why that's a real,
-// flagged-back gap rather than a design choice made here.
+// ChartRef is the structured chart location booth-core's install API accepts as an
+// alternative to a raw chartRef string (see Entry.ChartRef below) — either a local
+// path or a repo-hosted chart resolved by RepoURL+ChartName+Version, the same shape
+// `helm install --repo ...` uses. Used for this repo's own bundled catalog entries,
+// which are authored directly in this structured form.
 type ChartRef struct {
 	Path      string `yaml:"path,omitempty" json:"path,omitempty"`
 	RepoURL   string `yaml:"repoUrl,omitempty" json:"repoUrl,omitempty"`
@@ -86,6 +84,14 @@ type Entry struct {
 	Chart           ChartRef        `yaml:"chart,omitempty" json:"chart,omitempty"`
 	ManifestPreview ManifestPreview `yaml:"manifestPreview,omitempty" json:"manifestPreview,omitempty"`
 
+	// ChartRef/ChartVersion are a registry entry's chart location passed through
+	// verbatim, unparsed (ADR 0028) — booth-core is now the one place chartRef
+	// parsing lives, not this repo. Set instead of Chart for every registry-sourced
+	// entry (see registryclient.go); bundled entries keep using the structured Chart
+	// field above, since this repo authors those directly.
+	ChartRef     string `yaml:"-" json:"chartRef,omitempty"`
+	ChartVersion string `yaml:"-" json:"chartVersion,omitempty"`
+
 	Source Source        `yaml:"-" json:"source"`
 	Status InstallStatus `yaml:"-" json:"status"`
 
@@ -93,4 +99,11 @@ type Entry struct {
 	// only (ADR 0029) — set by internal/api when building a catalog response, never
 	// applied as a silent default for the actual mutating call.
 	SuggestedNamespace string `yaml:"-" json:"suggestedNamespace,omitempty"`
+}
+
+// HasChart reports whether this entry has any chart location at all, structured or
+// raw — an entry with neither (a bundled module whose repo hasn't published a chart
+// yet) is listed but not installable.
+func (e Entry) HasChart() bool {
+	return !e.Chart.IsZero() || e.ChartRef != ""
 }

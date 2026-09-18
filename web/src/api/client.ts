@@ -7,6 +7,8 @@ import type { CatalogEntry } from "../types";
 // harness's Vite proxy (vite.config.ts) makes the same relative paths work standalone.
 const BASE = "/api";
 
+export type GetAccessToken = () => string | null;
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -16,20 +18,24 @@ export class ApiError extends Error {
   }
 }
 
-// workspace and accessToken are both required on every call:
-// - workspace sets the X-Workspace header booth-core's gateway requires on every
-//   authenticated request (ADR 0025 §6) to resolve/forward X-Booth-Workspace
-//   downstream to this module's backend.
-// - accessToken is attached as `Authorization: Bearer <token>` — booth-core has no
-//   cookie/session support at all (ADR 0032); it's the module's own backend
-//   (internal/auth/middleware.go) that expects this, unchanged since this repo's own
-//   API was always bearer-token-shaped. What was wrong was this client never sending
-//   one, relying on cookies that don't exist on booth-core's side. See ADR 0032 and
-//   docs/decisions/0004-native-module-access-token-prop.md.
-async function request<T>(path: string, workspace: string, accessToken: string, init?: RequestInit): Promise<T> {
+// workspace sets the X-Workspace header booth-core's gateway requires on every
+// authenticated request (ADR 0025 §6) to resolve/forward X-Booth-Workspace downstream
+// to this module's backend.
+//
+// getAccessToken is called fresh immediately before each request, not read once and
+// cached — booth-design's token can be silently renewed at any time (ADR 0032), and a
+// value captured earlier can go stale with no guarantee a re-render would refresh it.
+// A null return (not-yet-authenticated boot window, logged out) omits the
+// Authorization header entirely rather than sending the literal string "null" (ADR
+// 0033). booth-core has no cookie/session support at all — there is no fallback
+// credentials mode to lean on if the token is missing.
+async function request<T>(path: string, workspace: string, getAccessToken: GetAccessToken, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   headers.set("X-Workspace", workspace);
-  headers.set("Authorization", `Bearer ${accessToken}`);
+  const token = getAccessToken();
+  if (token !== null) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
 
   const res = await fetch(BASE + path, { ...init, headers });
   if (!res.ok) {
@@ -41,24 +47,24 @@ async function request<T>(path: string, workspace: string, accessToken: string, 
   return (await res.json()) as T;
 }
 
-export function fetchCatalog(workspace: string, accessToken: string): Promise<CatalogEntry[]> {
-  return request<CatalogEntry[]>("/catalog", workspace, accessToken);
+export function fetchCatalog(workspace: string, getAccessToken: GetAccessToken): Promise<CatalogEntry[]> {
+  return request<CatalogEntry[]>("/catalog", workspace, getAccessToken);
 }
 
 // namespace is required, not optional: ADR 0029 — there is no fleet-wide default
 // namespace, so the installing user must have already seen and confirmed (or
 // overridden) it before this is ever called. See components/ModuleCard.tsx for
 // where that confirmation happens.
-export function installModule(id: string, workspace: string, accessToken: string, namespace: string): Promise<void> {
-  return request<void>(`/catalog/${encodeURIComponent(id)}/install`, workspace, accessToken, {
+export function installModule(id: string, workspace: string, getAccessToken: GetAccessToken, namespace: string): Promise<void> {
+  return request<void>(`/catalog/${encodeURIComponent(id)}/install`, workspace, getAccessToken, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ namespace }),
   });
 }
 
-export function uninstallModule(id: string, workspace: string, accessToken: string, namespace: string): Promise<void> {
-  return request<void>(`/catalog/${encodeURIComponent(id)}?namespace=${encodeURIComponent(namespace)}`, workspace, accessToken, {
+export function uninstallModule(id: string, workspace: string, getAccessToken: GetAccessToken, namespace: string): Promise<void> {
+  return request<void>(`/catalog/${encodeURIComponent(id)}?namespace=${encodeURIComponent(namespace)}`, workspace, getAccessToken, {
     method: "DELETE",
   });
 }

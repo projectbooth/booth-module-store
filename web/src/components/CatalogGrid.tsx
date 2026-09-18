@@ -1,17 +1,18 @@
 import type { CatalogEntry, WorkspaceRole } from "../types";
+import type { GetAccessToken } from "../api/client";
 import { ModuleCard } from "./ModuleCard";
 
 export function CatalogGrid({
   entries,
   workspace,
   role,
-  accessToken,
+  getAccessToken,
   onChanged,
 }: {
   entries: CatalogEntry[];
   workspace: string;
   role: WorkspaceRole;
-  accessToken: string;
+  getAccessToken: GetAccessToken;
   onChanged: () => void;
 }) {
   if (entries.length === 0) {
@@ -26,7 +27,7 @@ export function CatalogGrid({
           entry={entry}
           workspace={workspace}
           role={role}
-          accessToken={accessToken}
+          getAccessToken={getAccessToken}
           onChanged={onChanged}
         />
       ))}

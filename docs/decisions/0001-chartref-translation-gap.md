@@ -1,13 +1,13 @@
 # booth-module-store decision 0001: chartRef shape mismatch between the registry
 # protocol and booth-core's actual install API
 
-Status: **resolved at the architecture level by
-`../../../booth-architecture/decisions/0028-install-api-accepts-chartref-strings.md`**
-— `booth-core`'s install API will grow `chartRef`-string support, at which point this
-repo switches its registry-consuming install path to pass a registry's `chartRef`
-straight through and retires `internal/catalog/chartref.go`. Until `booth-core` ships
-that, the interim parser below stays in place — this repo doesn't block on the other
-side's change to keep functioning. Original flag text kept below for context.
+Status: **resolved and implemented**, per
+`../../../booth-architecture/decisions/0028-install-api-accepts-chartref-strings.md`
+— `booth-core`'s install API now accepts a raw `chartRef` string directly. This repo's
+registry-consuming install path passes a registry's `chartRef`/`chartVersion` straight
+through unparsed (`internal/coreclient/client.go`), and the interim parser this doc
+originally shipped (`internal/catalog/chartref.go`, `ParseRegistryChartRef`) has been
+deleted. Original flag text kept below for context on how the gap was found.
 
 ---
 

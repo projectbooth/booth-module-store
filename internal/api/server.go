@@ -174,7 +174,7 @@ func handleInstall(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		if err := deps.Core.Install(r.Context(), identity.RawToken, identity.Workspace, id, entry.Chart, req.Namespace, req.Values); err != nil {
+		if err := deps.Core.Install(r.Context(), identity.RawToken, identity.Workspace, id, entry, req.Namespace, req.Values); err != nil {
 			http.Error(w, err.Error(), http.StatusBadGateway)
 			return
 		}

@@ -61,11 +61,15 @@ func (c *Client) ListModules(ctx context.Context, bearerToken, workspace string)
 }
 
 // installRequest mirrors booth-core's own internal/api.installRequest — the exact body
-// its POST /api/modules/{id}/install endpoint expects.
+// its POST /api/modules/{id}/install endpoint expects. A caller supplies exactly one
+// of ChartRef (a raw string, e.g. "oci://host/path/chart-name" — a registry entry's
+// chartRef, passed through unparsed per ADR 0028) or the structured Chart object.
 type installRequest struct {
-	Namespace string         `json:"namespace"`
-	Chart     chartRefBody   `json:"chart"`
-	Values    map[string]any `json:"values,omitempty"`
+	Namespace    string         `json:"namespace"`
+	Chart        *chartRefBody  `json:"chart,omitempty"` // pointer so omitempty actually omits it — encoding/json never omits a zero-value struct
+	ChartRef     string         `json:"chartRef,omitempty"`
+	ChartVersion string         `json:"chartVersion,omitempty"`
+	Values       map[string]any `json:"values,omitempty"`
 }
 
 type chartRefBody struct {
@@ -75,27 +79,33 @@ type chartRefBody struct {
 	Version   string `json:"version,omitempty"`
 }
 
-// Install calls POST /api/modules/{id}/install with the given entry's chart reference.
-// Returns an error if chart is unresolved (catalog.ChartRef.IsZero) — this repo never
+// Install calls POST /api/modules/{id}/install with the given entry's chart reference
+// — its raw ChartRef string if set (a registry entry, passed through unparsed per ADR
+// 0028), otherwise its structured Chart (a bundled entry, authored directly in that
+// form). Returns an error if neither is set (catalog.Entry.HasChart) — this repo never
 // guesses at a chart location.
-func (c *Client) Install(ctx context.Context, bearerToken, workspace, moduleID string, chart catalog.ChartRef, namespace string, values map[string]any) error {
-	if chart.IsZero() {
+func (c *Client) Install(ctx context.Context, bearerToken, workspace, moduleID string, entry catalog.Entry, namespace string, values map[string]any) error {
+	if !entry.HasChart() {
 		return fmt.Errorf("module %q has no chart reference yet; cannot install", moduleID)
 	}
 	if namespace == "" {
 		return fmt.Errorf("namespace is required")
 	}
 
-	body, err := json.Marshal(installRequest{
-		Namespace: namespace,
-		Chart: chartRefBody{
-			Path:      chart.Path,
-			RepoURL:   chart.RepoURL,
-			ChartName: chart.ChartName,
-			Version:   chart.Version,
-		},
-		Values: values,
-	})
+	reqBody := installRequest{Namespace: namespace, Values: values}
+	if entry.ChartRef != "" {
+		reqBody.ChartRef = entry.ChartRef
+		reqBody.ChartVersion = entry.ChartVersion
+	} else {
+		reqBody.Chart = &chartRefBody{
+			Path:      entry.Chart.Path,
+			RepoURL:   entry.Chart.RepoURL,
+			ChartName: entry.Chart.ChartName,
+			Version:   entry.Chart.Version,
+		}
+	}
+
+	body, err := json.Marshal(reqBody)
 	if err != nil {
 		return fmt.Errorf("encoding install request: %w", err)
 	}

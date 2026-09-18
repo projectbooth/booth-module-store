@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ModuleStoreApp } from "../ModuleStoreApp";
 import type { WorkspaceRole } from "../types";
 
@@ -13,8 +13,8 @@ const ROLES: WorkspaceRole[] = ["owner", "editor", "viewer"];
 // shell/install-API before either is fully ready."
 //
 // Also doubles as a manual check of the ModuleStoreAppProps contract itself (ADR
-// 0030, docs/decisions/0003-native-module-props-contract.md) — the workspace/role
-// selectors below exist so a developer can exercise what a real shell would pass in.
+// 0031/0033, contracts/ui-integration.md) — the workspace/role/token controls below
+// exist so a developer can exercise what a real shell would pass in.
 export function DevShell() {
   const [theme, setTheme] = useState<"light" | "dark">(
     () => (localStorage.getItem("module-store-dev-theme") as "light" | "dark") ?? "light",
@@ -22,10 +22,19 @@ export function DevShell() {
   const [workspace, setWorkspace] = useState("acme-analytics");
   const [role, setRole] = useState<WorkspaceRole>("owner");
   // Dev-only stand-in for the bearer token booth-design's real OIDC PKCE flow (ADR
-  // 0032) would hold in memory and pass down. Hitting a real booth-core with this
-  // fake value will still 401 — there's no dev-mode auth bypass in this repo's
-  // backend — but it exercises the prop plumbing end to end.
-  const [accessToken, setAccessToken] = useState("dev-fake-token");
+  // 0032) holds in memory. Hitting a real booth-core with this fake value will still
+  // 401 — there's no dev-mode auth bypass in this repo's backend — but it exercises
+  // the getAccessToken plumbing end to end, including the ADR 0033 staleness concern:
+  // held in a ref, not read from the accessTokenInput state directly, so
+  // getAccessToken's identity stays stable across renders while still always
+  // returning whatever was last typed — the same shape a real in-memory token store
+  // would have.
+  const [accessTokenInput, setAccessTokenInput] = useState("dev-fake-token");
+  const accessTokenRef = useRef(accessTokenInput);
+  useEffect(() => {
+    accessTokenRef.current = accessTokenInput;
+  }, [accessTokenInput]);
+  const getAccessToken = useCallback(() => accessTokenRef.current || null, []);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -71,9 +80,10 @@ export function DevShell() {
             Access token
             <input
               type="text"
-              value={accessToken}
-              onChange={(e) => setAccessToken(e.target.value)}
-              className="ml-1.5 w-32 rounded-md border border-slate-300 px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              value={accessTokenInput}
+              onChange={(e) => setAccessTokenInput(e.target.value)}
+              placeholder="(empty = logged out)"
+              className="ml-1.5 w-40 rounded-md border border-slate-300 px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
             />
           </label>
           <button
@@ -86,7 +96,7 @@ export function DevShell() {
         </div>
       </header>
       <main>
-        <ModuleStoreApp workspace={workspace} role={role} theme={theme} accessToken={accessToken} />
+        <ModuleStoreApp workspace={workspace} role={role} theme={theme} getAccessToken={getAccessToken} />
       </main>
     </div>
   );

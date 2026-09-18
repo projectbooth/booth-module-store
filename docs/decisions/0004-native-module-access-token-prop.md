@@ -1,9 +1,16 @@
 # booth-module-store decision 0004: accessToken joins the native-module props contract
 
-Status: **agreed with booth-design's agent, flagged to the coordinator for
-`contracts/ui-integration.md`** — same "propose, don't silently decide alone" pattern
-as `docs/decisions/0003-native-module-props-contract.md`, which ADR 0031 has since
-pinned into the contract without this field.
+Status: **superseded by
+`../../../booth-architecture/decisions/0033-native-module-access-token-prop.md`** —
+this repo's own proposed shape below (`accessToken: string`, a plain value) turned out
+to be the wrong answer, not just an unratified one: it's vulnerable to going stale
+across `booth-design`'s silent token refresh (ADR 0032), since a value prop captured
+at one render has no guarantee of being refreshed before the next API call. ADR 0033
+instead resolved on `getAccessToken: () => string | null`, called fresh immediately
+before every request — implemented in this repo's `web/src/api/client.ts` and
+`web/src/ModuleStoreApp.tsx`. Original proposal kept below for context on how the gap
+was first found (real, not hypothetical: booth-design actually mounted `0.1.0` against
+a real `booth-core` and hit a 401).
 
 ## Context
 

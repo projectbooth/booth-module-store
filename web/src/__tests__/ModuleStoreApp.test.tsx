@@ -45,7 +45,7 @@ describe("ModuleStoreApp", () => {
 
   it("loads and renders the catalog", async () => {
     mockFetch([bundledStorage, registryForecast]);
-    render(<ModuleStoreApp workspace="acme" role="owner" theme="light" accessToken="test-token" />);
+    render(<ModuleStoreApp workspace="acme" role="owner" theme="light" getAccessToken={() => "test-token"} />);
 
     expect(await screen.findByText("Storage")).toBeInTheDocument();
     expect(screen.getByText("Acme Forecast")).toBeInTheDocument();
@@ -53,20 +53,32 @@ describe("ModuleStoreApp", () => {
     expect(screen.getByText(/Registry:/)).toBeInTheDocument();
   });
 
-  it("sends the workspace as an X-Workspace header and the token as a Bearer Authorization header on every request", async () => {
+  it("sends the workspace as an X-Workspace header and calls getAccessToken fresh for the Bearer Authorization header", async () => {
     const fetchMock = mockFetch([bundledStorage]);
-    render(<ModuleStoreApp workspace="acme-analytics" role="owner" theme="light" accessToken="the-real-token" />);
+    const getAccessToken = vi.fn(() => "the-real-token");
+    render(<ModuleStoreApp workspace="acme-analytics" role="owner" theme="light" getAccessToken={getAccessToken} />);
     await screen.findByText("Storage");
 
+    expect(getAccessToken).toHaveBeenCalled();
     const [, init] = fetchMock.mock.calls[0];
     const headers = new Headers(init.headers);
     expect(headers.get("X-Workspace")).toBe("acme-analytics");
     expect(headers.get("Authorization")).toBe("Bearer the-real-token");
   });
 
+  it("omits the Authorization header entirely when getAccessToken returns null, rather than sending the literal string (ADR 0033)", async () => {
+    const fetchMock = mockFetch([bundledStorage]);
+    render(<ModuleStoreApp workspace="acme" role="owner" theme="light" getAccessToken={() => null} />);
+    await screen.findByText("Storage");
+
+    const [, init] = fetchMock.mock.calls[0];
+    const headers = new Headers(init.headers);
+    expect(headers.has("Authorization")).toBe(false);
+  });
+
   it("filters by search query", async () => {
     mockFetch([bundledStorage, registryForecast]);
-    render(<ModuleStoreApp workspace="acme" role="owner" theme="light" accessToken="test-token" />);
+    render(<ModuleStoreApp workspace="acme" role="owner" theme="light" getAccessToken={() => "test-token"} />);
     await screen.findByText("Storage");
 
     await userEvent.type(screen.getByLabelText("Search modules"), "forecast");
@@ -77,14 +89,14 @@ describe("ModuleStoreApp", () => {
 
   it("shows an error state when the catalog fails to load", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 502, text: async () => "bad gateway" }));
-    render(<ModuleStoreApp workspace="acme" role="owner" theme="light" accessToken="test-token" />);
+    render(<ModuleStoreApp workspace="acme" role="owner" theme="light" getAccessToken={() => "test-token"} />);
 
     await waitFor(() => expect(screen.getByText(/Couldn't load the Module Store/)).toBeInTheDocument());
   });
 
   it("hides install/uninstall actions for non-owner roles", async () => {
     mockFetch([bundledStorage]);
-    render(<ModuleStoreApp workspace="acme" role="viewer" theme="light" accessToken="test-token" />);
+    render(<ModuleStoreApp workspace="acme" role="viewer" theme="light" getAccessToken={() => "test-token"} />);
     await screen.findByText("Storage");
 
     expect(screen.queryByRole("button", { name: "Install" })).not.toBeInTheDocument();
@@ -93,7 +105,7 @@ describe("ModuleStoreApp", () => {
 
   it("requires confirming a namespace before calling install (ADR 0029)", async () => {
     const fetchMock = mockFetch([bundledStorage]);
-    render(<ModuleStoreApp workspace="acme" role="owner" theme="light" accessToken="test-token" />);
+    render(<ModuleStoreApp workspace="acme" role="owner" theme="light" getAccessToken={() => "test-token"} />);
     await screen.findByText("Storage");
 
     await userEvent.click(screen.getByRole("button", { name: "Install" }));
@@ -118,7 +130,7 @@ describe("ModuleStoreApp", () => {
 
   it("lets the user change the namespace before confirming install", async () => {
     const fetchMock = mockFetch([bundledStorage]);
-    render(<ModuleStoreApp workspace="acme" role="owner" theme="light" accessToken="test-token" />);
+    render(<ModuleStoreApp workspace="acme" role="owner" theme="light" getAccessToken={() => "test-token"} />);
     await screen.findByText("Storage");
 
     await userEvent.click(screen.getByRole("button", { name: "Install" }));

@@ -34,6 +34,10 @@ export interface CatalogEntry {
     chartName?: string;
     version?: string;
   };
+  /** A registry entry's chart location, passed through verbatim/unparsed (ADR 0028)
+   *  — set instead of `chart` for registry-sourced entries. */
+  chartRef?: string;
+  chartVersion?: string;
   manifestPreview?: ManifestPreview;
   source: Source;
   status: InstallStatus;
@@ -42,6 +46,6 @@ export interface CatalogEntry {
   suggestedNamespace?: string;
 }
 
-/** Caller's role in the active workspace (ADR 0025). Matches booth-design's
- *  NativeModuleProps contract (see docs/decisions/0003-native-module-props-contract.md). */
+/** Caller's role in the active workspace (ADR 0025). Matches
+ *  contracts/ui-integration.md's NativeModuleProps contract (ADR 0031). */
 export type WorkspaceRole = "owner" | "editor" | "viewer";

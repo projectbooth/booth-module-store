@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CatalogEntry, WorkspaceRole } from "./types";
-import { fetchCatalog } from "./api/client";
+import { fetchCatalog, type GetAccessToken } from "./api/client";
 import { categoriesOf, filterCatalog } from "./catalogFilter";
 import { SearchBar } from "./components/SearchBar";
 import { CategoryFilter } from "./components/CategoryFilter";
 import { CatalogGrid } from "./components/CatalogGrid";
 
 /**
- * Props contract agreed with booth-design (ADR 0030's first real consumer pass — see
- * docs/decisions/0003-native-module-props-contract.md): plain React props, not a
- * shared context object, so this package never has to depend on anything
- * booth-design exports (that would invert the dependency direction ADR 0030 fixed).
+ * Props contract agreed with booth-design and pinned into contracts/ui-integration.md
+ * by ADR 0031 (workspace/role/theme) and ADR 0033 (getAccessToken): plain React
+ * props, not a shared context object, so this package never has to depend on
+ * anything booth-design exports (that would invert the dependency direction ADR 0030
+ * established).
  *
  * `theme` is included for any JS-driven decision a native module might need, even
  * though CSS-only styling here already follows the ambient `data-theme` attribute on
@@ -30,17 +31,18 @@ export interface ModuleStoreAppProps {
    *  boundary. */
   role: WorkspaceRole;
   theme: "dark" | "light";
-  /** The bearer token booth-design obtained via its client-side OIDC PKCE flow (ADR
-   *  0032) — booth-core has no cookie/session support, every API call needs this
-   *  attached as `Authorization: Bearer <token>`. See
-   *  docs/decisions/0004-native-module-access-token-prop.md. */
-  accessToken: string;
+  /** Returns booth-design's current bearer token (its client-side OIDC PKCE flow,
+   *  ADR 0032), or null if not yet authenticated / logged out. A callback rather than
+   *  a plain value specifically to survive booth-design's silent token refresh
+   *  without going stale (ADR 0033) — this component calls it fresh immediately
+   *  before every API request, never caches the result. */
+  getAccessToken: GetAccessToken;
 }
 
 // The native-mode component booth-design's shell mounts at its reserved "Module
 // Store" slot (ADR 0027, ADR 0030). Published as @projectbooth/module-store-ui — see
 // this repo's README for the package build/publish setup.
-export function ModuleStoreApp({ workspace, role, theme, accessToken }: ModuleStoreAppProps) {
+export function ModuleStoreApp({ workspace, role, theme, getAccessToken }: ModuleStoreAppProps) {
   const [entries, setEntries] = useState<CatalogEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -48,7 +50,7 @@ export function ModuleStoreApp({ workspace, role, theme, accessToken }: ModuleSt
 
   async function reload() {
     try {
-      const data = await fetchCatalog(workspace, accessToken);
+      const data = await fetchCatalog(workspace, getAccessToken);
       setEntries(data);
       setError(null);
     } catch (err) {
@@ -58,10 +60,12 @@ export function ModuleStoreApp({ workspace, role, theme, accessToken }: ModuleSt
 
   useEffect(() => {
     reload();
-    // Only re-fetch when the active workspace or token changes, not on every render —
-    // reload itself is redefined each render and intentionally left out of this
-    // dependency list.
-  }, [workspace, accessToken]);
+    // Only re-fetch when the active workspace changes, not on every render — reload
+    // itself is redefined each render and intentionally left out of this dependency
+    // list. getAccessToken is deliberately not a dependency either: it's called fresh
+    // at request time regardless of when this effect last ran (ADR 0033) — there's no
+    // "token changed" render signal to react to in the first place.
+  }, [workspace]);
 
   const categories = useMemo(() => categoriesOf(entries ?? []), [entries]);
   const filtered = useMemo(() => filterCatalog(entries ?? [], { query, category }), [entries, query, category]);
@@ -76,7 +80,7 @@ export function ModuleStoreApp({ workspace, role, theme, accessToken }: ModuleSt
             <SearchBar value={query} onChange={setQuery} />
           </div>
           <CategoryFilter categories={categories} selected={category} onChange={setCategory} />
-          <CatalogGrid entries={filtered} workspace={workspace} role={role} accessToken={accessToken} onChanged={reload} />
+          <CatalogGrid entries={filtered} workspace={workspace} role={role} getAccessToken={getAccessToken} onChanged={reload} />
         </>
       )}
     </div>

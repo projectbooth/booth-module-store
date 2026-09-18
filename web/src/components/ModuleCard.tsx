@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { CatalogEntry, WorkspaceRole } from "../types";
-import { installModule, uninstallModule } from "../api/client";
+import { installModule, uninstallModule, type GetAccessToken } from "../api/client";
 import { SourceBadge } from "./SourceBadge";
 import { StatusBadge } from "./StatusBadge";
 
@@ -20,17 +20,17 @@ export function ModuleCard({
   entry,
   workspace,
   role,
-  accessToken,
+  getAccessToken,
   onChanged,
 }: {
   entry: CatalogEntry;
   workspace: string;
   role: WorkspaceRole;
-  accessToken: string;
+  getAccessToken: GetAccessToken;
   onChanged: () => void;
 }) {
   const [state, setState] = useState<CardState>({ kind: "idle" });
-  const installable = Boolean(entry.chart?.chartName || entry.chart?.path);
+  const installable = Boolean(entry.chart?.chartName || entry.chart?.path || entry.chartRef);
   const installed = entry.status.state === "installed";
   const canManage = role === "owner";
 
@@ -50,9 +50,9 @@ export function ModuleCard({
     setState({ kind: "pending", action });
     try {
       if (action === "install") {
-        await installModule(entry.id, workspace, accessToken, namespace.trim());
+        await installModule(entry.id, workspace, getAccessToken, namespace.trim());
       } else {
-        await uninstallModule(entry.id, workspace, accessToken, namespace.trim());
+        await uninstallModule(entry.id, workspace, getAccessToken, namespace.trim());
       }
       onChanged();
       setState({ kind: "idle" });

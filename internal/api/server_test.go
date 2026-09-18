@@ -171,6 +171,49 @@ func TestHandleInstall_PassesThroughExplicitNamespace(t *testing.T) {
 	}
 }
 
+// TestHandleInstall_RegistryEntryPassesThroughChartRef is the ADR 0028 regression
+// guard, exercised through the full handler: a registry-sourced entry's raw
+// chartRef/chartVersion must reach booth-core unparsed.
+func TestHandleInstall_RegistryEntryPassesThroughChartRef(t *testing.T) {
+	var gotBody map[string]any
+	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/modules" {
+			json.NewEncoder(w).Encode([]coreclient.Module{})
+			return
+		}
+		json.NewDecoder(r.Body).Decode(&gotBody)
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer core.Close()
+
+	registry := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`[{"id":"acme-forecast","displayName":"Acme Forecast","chartRef":"oci://registry.example.com/charts/acme-forecast","chartVersion":"1.4.2"}]`))
+	}))
+	defer registry.Close()
+
+	deps := Deps{
+		Core:           coreclient.New(core.URL),
+		RegistryURLs:   []string{registry.URL},
+		RegistryClient: catalog.NewRegistryClient(),
+	}
+
+	req := withTestIdentity(httptest.NewRequest(http.MethodPost, "/api/catalog/acme-forecast/install", strings.NewReader(`{"namespace":"booth-acme-forecast"}`)))
+	req = withURLParam(req, "id", "acme-forecast")
+	rec := httptest.NewRecorder()
+	handleInstall(deps)(rec, req)
+
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if gotBody["chartRef"] != "oci://registry.example.com/charts/acme-forecast" {
+		t.Errorf("chartRef = %v, want the registry's raw value passed through unchanged", gotBody["chartRef"])
+	}
+	if gotBody["chartVersion"] != "1.4.2" {
+		t.Errorf("chartVersion = %v", gotBody["chartVersion"])
+	}
+}
+
 func TestHandleUninstall_RequiresExplicitNamespace(t *testing.T) {
 	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("booth-core should never be called when namespace is missing")
