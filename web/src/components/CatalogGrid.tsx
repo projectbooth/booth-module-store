@@ -5,11 +5,13 @@ export function CatalogGrid({
   entries,
   workspace,
   role,
+  accessToken,
   onChanged,
 }: {
   entries: CatalogEntry[];
   workspace: string;
   role: WorkspaceRole;
+  accessToken: string;
   onChanged: () => void;
 }) {
   if (entries.length === 0) {
@@ -24,6 +26,7 @@ export function CatalogGrid({
           entry={entry}
           workspace={workspace}
           role={role}
+          accessToken={accessToken}
           onChanged={onChanged}
         />
       ))}

@@ -21,17 +21,21 @@ module — see `../booth-architecture`'s ADR 0027 and `agent-briefs/module-store
   only (see that file's own comment), not something that ships.
 - **Deployment**: one Helm chart (`charts/booth-module-store`), per ADR 0003.
 
-## The native-module mount contract (ADR 0030)
+## The native-module mount contract (ADR 0030/0031)
 
-`ModuleStoreApp` takes three required props, agreed with `booth-design`'s agent and
-flagged to the coordinator as a candidate for `contracts/ui-integration.md` (see
-`docs/decisions/0003-native-module-props-contract.md`):
+`ModuleStoreApp` takes four required props — `workspace`/`role`/`theme` pinned into
+`contracts/ui-integration.md` by ADR 0031, plus `accessToken` (agreed with
+`booth-design`'s agent, still flagged as a candidate for that same contract — see
+`docs/decisions/0004-native-module-access-token-prop.md`):
 
 ```ts
 interface ModuleStoreAppProps {
   workspace: string; // active workspace slug (ADR 0025) — required for every API call
   role: "owner" | "editor" | "viewer"; // gates install/uninstall actions in this UI only
   theme: "dark" | "light";
+  accessToken: string; // bearer token from booth-design's OIDC PKCE flow (ADR 0032) —
+                        // booth-core has no cookie/session support, this is required
+                        // on every API call
 }
 ```
 
@@ -55,8 +59,8 @@ charts/booth-module-store/  Helm chart, including this module's own BoothModule
 web/                      native-mode frontend (see web/README-equivalent comments in
                           ModuleStoreApp.tsx and devshell/DevShell.tsx)
 docs/decisions/           flagged cross-cutting questions this repo hit while
-                          building (see below) — some now resolved by an
-                          architecture-level ADR, one (0003) still open
+                          building (see below) — most now resolved by an
+                          architecture-level ADR, 0004 still open
 docs/bundled-catalog-sync.md   proposed (not yet built) approach for keeping the
                           bundled catalog in sync with MODULE_REGISTRY.md over time
 test/contract/           validates this repo's own BoothModule manifest against
@@ -80,8 +84,14 @@ test/integration/        real-cluster (kind) smoke test — see its own README f
   fallback has been removed accordingly (see "Namespace confirmation" below).
 - **[0003](docs/decisions/0003-native-module-props-contract.md)** — the concrete
   native-module mount props contract (workspace/role/theme), agreed with
-  `booth-design`'s agent per ADR 0030. **Still open**: whether this should move into
-  `contracts/ui-integration.md` as the standard every future native module follows.
+  `booth-design`'s agent per ADR 0030. **Resolved at the architecture level** by ADR
+  0031: pinned into `contracts/ui-integration.md` as the standard every native module
+  follows.
+- **[0004](docs/decisions/0004-native-module-access-token-prop.md)** — extending that
+  contract with `accessToken`, after wiring this package into `booth-design` for real
+  surfaced that `booth-core` has no cookie/session support at all (ADR 0032) and this
+  client was never sending a bearer token. **Still open**: whether `accessToken` joins
+  `contracts/ui-integration.md`'s `NativeModuleProps` alongside the other three fields.
 
 ## Namespace confirmation (ADR 0029)
 

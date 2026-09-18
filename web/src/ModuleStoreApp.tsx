@@ -30,12 +30,17 @@ export interface ModuleStoreAppProps {
    *  boundary. */
   role: WorkspaceRole;
   theme: "dark" | "light";
+  /** The bearer token booth-design obtained via its client-side OIDC PKCE flow (ADR
+   *  0032) — booth-core has no cookie/session support, every API call needs this
+   *  attached as `Authorization: Bearer <token>`. See
+   *  docs/decisions/0004-native-module-access-token-prop.md. */
+  accessToken: string;
 }
 
 // The native-mode component booth-design's shell mounts at its reserved "Module
 // Store" slot (ADR 0027, ADR 0030). Published as @projectbooth/module-store-ui — see
 // this repo's README for the package build/publish setup.
-export function ModuleStoreApp({ workspace, role, theme }: ModuleStoreAppProps) {
+export function ModuleStoreApp({ workspace, role, theme, accessToken }: ModuleStoreAppProps) {
   const [entries, setEntries] = useState<CatalogEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -43,7 +48,7 @@ export function ModuleStoreApp({ workspace, role, theme }: ModuleStoreAppProps) 
 
   async function reload() {
     try {
-      const data = await fetchCatalog(workspace);
+      const data = await fetchCatalog(workspace, accessToken);
       setEntries(data);
       setError(null);
     } catch (err) {
@@ -53,10 +58,10 @@ export function ModuleStoreApp({ workspace, role, theme }: ModuleStoreAppProps) 
 
   useEffect(() => {
     reload();
-    // Only re-fetch when the active workspace changes, not on every render — reload
-    // itself is redefined each render and intentionally left out of this dependency
-    // list.
-  }, [workspace]);
+    // Only re-fetch when the active workspace or token changes, not on every render —
+    // reload itself is redefined each render and intentionally left out of this
+    // dependency list.
+  }, [workspace, accessToken]);
 
   const categories = useMemo(() => categoriesOf(entries ?? []), [entries]);
   const filtered = useMemo(() => filterCatalog(entries ?? [], { query, category }), [entries, query, category]);
@@ -71,7 +76,7 @@ export function ModuleStoreApp({ workspace, role, theme }: ModuleStoreAppProps) 
             <SearchBar value={query} onChange={setQuery} />
           </div>
           <CategoryFilter categories={categories} selected={category} onChange={setCategory} />
-          <CatalogGrid entries={filtered} workspace={workspace} role={role} onChanged={reload} />
+          <CatalogGrid entries={filtered} workspace={workspace} role={role} accessToken={accessToken} onChanged={reload} />
         </>
       )}
     </div>

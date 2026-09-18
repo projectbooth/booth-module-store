@@ -21,6 +21,11 @@ export function DevShell() {
   );
   const [workspace, setWorkspace] = useState("acme-analytics");
   const [role, setRole] = useState<WorkspaceRole>("owner");
+  // Dev-only stand-in for the bearer token booth-design's real OIDC PKCE flow (ADR
+  // 0032) would hold in memory and pass down. Hitting a real booth-core with this
+  // fake value will still 401 — there's no dev-mode auth bypass in this repo's
+  // backend — but it exercises the prop plumbing end to end.
+  const [accessToken, setAccessToken] = useState("dev-fake-token");
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -62,6 +67,15 @@ export function DevShell() {
               ))}
             </select>
           </label>
+          <label className="text-xs text-slate-500 dark:text-slate-400">
+            Access token
+            <input
+              type="text"
+              value={accessToken}
+              onChange={(e) => setAccessToken(e.target.value)}
+              className="ml-1.5 w-32 rounded-md border border-slate-300 px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+            />
+          </label>
           <button
             type="button"
             onClick={() => setTheme((t) => (t === "light" ? "dark" : "light"))}
@@ -72,7 +86,7 @@ export function DevShell() {
         </div>
       </header>
       <main>
-        <ModuleStoreApp workspace={workspace} role={role} theme={theme} />
+        <ModuleStoreApp workspace={workspace} role={role} theme={theme} accessToken={accessToken} />
       </main>
     </div>
   );

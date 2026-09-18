@@ -20,11 +20,13 @@ export function ModuleCard({
   entry,
   workspace,
   role,
+  accessToken,
   onChanged,
 }: {
   entry: CatalogEntry;
   workspace: string;
   role: WorkspaceRole;
+  accessToken: string;
   onChanged: () => void;
 }) {
   const [state, setState] = useState<CardState>({ kind: "idle" });
@@ -48,9 +50,9 @@ export function ModuleCard({
     setState({ kind: "pending", action });
     try {
       if (action === "install") {
-        await installModule(entry.id, workspace, namespace.trim());
+        await installModule(entry.id, workspace, accessToken, namespace.trim());
       } else {
-        await uninstallModule(entry.id, workspace, namespace.trim());
+        await uninstallModule(entry.id, workspace, accessToken, namespace.trim());
       }
       onChanged();
       setState({ kind: "idle" });

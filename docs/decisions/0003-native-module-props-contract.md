@@ -1,6 +1,16 @@
 # booth-module-store decision 0003: the native-module mount props contract
 
-Status: **agreed with booth-design's agent, flagged to the coordinator for
+Status: **resolved at the architecture level by
+`../../../booth-architecture/decisions/0031-native-module-props-contract.md`** — this
+exact shape (`workspace`/`role`/`theme`, plain props not context) is now pinned into
+`contracts/ui-integration.md` as the standard every native-mode module follows. See
+`docs/decisions/0004-native-module-access-token-prop.md` for a fourth field
+(`accessToken`) added after this was written, flagged the same way. Original text kept
+below for context.
+
+---
+
+Status (original, superseded above): **agreed with booth-design's agent, flagged to the coordinator for
 `contracts/ui-integration.md`** — not something these two repos should keep as a
 private, undocumented handshake, per ADR 0030's own instruction to report back
 anything that looks like it needs the contract to say more.
