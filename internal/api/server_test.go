@@ -86,6 +86,9 @@ func TestHandleGetCatalog_MergesAndCrossReferences(t *testing.T) {
 	if len(got) != 1 || got[0].Status.State != catalog.Installed || got[0].Status.Health != "Healthy" {
 		t.Fatalf("got %+v", got)
 	}
+	if got[0].SuggestedNamespace != "booth-storage" {
+		t.Errorf("SuggestedNamespace = %q, want booth-storage (a UI pre-fill hint only, ADR 0029)", got[0].SuggestedNamespace)
+	}
 }
 
 func TestHandleInstall_UnknownEntry(t *testing.T) {
@@ -107,7 +110,36 @@ func TestHandleInstall_UnknownEntry(t *testing.T) {
 	}
 }
 
-func TestHandleInstall_DefaultsNamespace(t *testing.T) {
+// TestHandleInstall_RequiresExplicitNamespace is the ADR 0029 regression guard: this
+// endpoint must never silently pick a namespace on the caller's behalf, even though it
+// still suggests one in the catalog response (handleGetCatalog) for a confirmation UI
+// to pre-fill.
+func TestHandleInstall_RequiresExplicitNamespace(t *testing.T) {
+	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("booth-core should never be called when namespace is missing")
+	}))
+	defer core.Close()
+
+	deps := Deps{
+		Core: coreclient.New(core.URL),
+		Bundled: []catalog.Entry{{
+			ID:    "storage",
+			Chart: catalog.ChartRef{RepoURL: "oci://registry.example.com/charts", ChartName: "storage", Version: "1.0.0"},
+		}},
+		RegistryClient: catalog.NewRegistryClient(),
+	}
+
+	req := withTestIdentity(httptest.NewRequest(http.MethodPost, "/api/catalog/storage/install", strings.NewReader(`{}`)))
+	req = withURLParam(req, "id", "storage")
+	rec := httptest.NewRecorder()
+	handleInstall(deps)(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 (namespace is required, never defaulted — ADR 0029)", rec.Code)
+	}
+}
+
+func TestHandleInstall_PassesThroughExplicitNamespace(t *testing.T) {
 	var gotNamespace string
 	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var body map[string]any
@@ -126,7 +158,7 @@ func TestHandleInstall_DefaultsNamespace(t *testing.T) {
 		RegistryClient: catalog.NewRegistryClient(),
 	}
 
-	req := withTestIdentity(httptest.NewRequest(http.MethodPost, "/api/catalog/storage/install", strings.NewReader(`{}`)))
+	req := withTestIdentity(httptest.NewRequest(http.MethodPost, "/api/catalog/storage/install", strings.NewReader(`{"namespace":"acme-storage-team-3"}`)))
 	req = withURLParam(req, "id", "storage")
 	rec := httptest.NewRecorder()
 	handleInstall(deps)(rec, req)
@@ -134,18 +166,36 @@ func TestHandleInstall_DefaultsNamespace(t *testing.T) {
 	if rec.Code != http.StatusAccepted {
 		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
 	}
-	if gotNamespace != "booth-storage" {
-		t.Errorf("namespace = %q, want booth-storage", gotNamespace)
+	if gotNamespace != "acme-storage-team-3" {
+		t.Errorf("namespace = %q, want the caller-confirmed value passed through unchanged", gotNamespace)
 	}
 }
 
-func TestHandleUninstall(t *testing.T) {
-	core := fakeCoreServer(t, nil)
+func TestHandleUninstall_RequiresExplicitNamespace(t *testing.T) {
+	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("booth-core should never be called when namespace is missing")
+	}))
 	defer core.Close()
 
 	deps := Deps{Core: coreclient.New(core.URL)}
 
 	req := withTestIdentity(httptest.NewRequest(http.MethodDelete, "/api/catalog/storage", nil))
+	req = withURLParam(req, "id", "storage")
+	rec := httptest.NewRecorder()
+	handleUninstall(deps)(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 (namespace is required, never defaulted — ADR 0029)", rec.Code)
+	}
+}
+
+func TestHandleUninstall_WithExplicitNamespace(t *testing.T) {
+	core := fakeCoreServer(t, nil)
+	defer core.Close()
+
+	deps := Deps{Core: coreclient.New(core.URL)}
+
+	req := withTestIdentity(httptest.NewRequest(http.MethodDelete, "/api/catalog/storage?namespace=booth-storage", nil))
 	req = withURLParam(req, "id", "storage")
 	rec := httptest.NewRecorder()
 	handleUninstall(deps)(rec, req)

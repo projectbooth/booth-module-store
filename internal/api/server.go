@@ -105,6 +105,12 @@ func handleGetCatalog(deps Deps) http.HandlerFunc {
 		}
 
 		merged := catalog.Merge(deps.Bundled, tiers, lookup)
+		// suggestedNamespace is a pre-fill hint for the install-confirmation UI only
+		// (ADR 0029) — never applied server-side if the caller omits namespace; see
+		// handleInstall/handleUninstall below, which require it explicitly.
+		for i := range merged {
+			merged[i].SuggestedNamespace = suggestedNamespace(merged[i].ID)
+		}
 		writeJSON(w, http.StatusOK, merged)
 	}
 }
@@ -131,14 +137,16 @@ func findEntry(ctx context.Context, deps Deps, id string) (catalog.Entry, bool) 
 }
 
 type mutateRequest struct {
-	Namespace string         `json:"namespace,omitempty"`
+	Namespace string         `json:"namespace"`
 	Values    map[string]any `json:"values,omitempty"`
 }
 
-// defaultNamespace is this repo's interim convention (docs/decisions/0002-install-
-// namespace-convention.md) for where a module installs when the caller doesn't specify
-// one explicitly. No architecture-level ADR has settled this yet.
-func defaultNamespace(moduleID string) string {
+// suggestedNamespace is a pre-fill hint only (ADR 0029/0002): the installing user must
+// still see and confirm — or override — this value before an install/uninstall call is
+// made. It is never applied as a silent server-side fallback; per ADR 0029 there is no
+// fleet-wide default namespace convention, so every caller of booth-core's install API
+// (including this one) must supply namespace explicitly, always.
+func suggestedNamespace(moduleID string) string {
 	return "booth-" + moduleID
 }
 
@@ -161,12 +169,12 @@ func handleInstall(deps Deps) http.HandlerFunc {
 		if r.Body != nil {
 			_ = json.NewDecoder(r.Body).Decode(&req)
 		}
-		namespace := req.Namespace
-		if namespace == "" {
-			namespace = defaultNamespace(id)
+		if req.Namespace == "" {
+			http.Error(w, "namespace is required: the installing user must confirm a target namespace (ADR 0029), this endpoint does not default one", http.StatusBadRequest)
+			return
 		}
 
-		if err := deps.Core.Install(r.Context(), identity.RawToken, identity.Workspace, id, entry.Chart, namespace, req.Values); err != nil {
+		if err := deps.Core.Install(r.Context(), identity.RawToken, identity.Workspace, id, entry.Chart, req.Namespace, req.Values); err != nil {
 			http.Error(w, err.Error(), http.StatusBadGateway)
 			return
 		}
@@ -186,7 +194,8 @@ func handleUninstall(deps Deps) http.HandlerFunc {
 		id := chi.URLParam(r, "id")
 		namespace := r.URL.Query().Get("namespace")
 		if namespace == "" {
-			namespace = defaultNamespace(id)
+			http.Error(w, "namespace query parameter is required: the uninstalling user must confirm which namespace to remove (ADR 0029), this endpoint does not default one", http.StatusBadRequest)
+			return
 		}
 
 		if err := deps.Core.Uninstall(r.Context(), identity.RawToken, identity.Workspace, id, namespace); err != nil {

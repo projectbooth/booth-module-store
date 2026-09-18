@@ -1,6 +1,19 @@
 # booth-module-store decision 0002: what namespace does a module install into?
 
-Status: **flagged back to the coordinator, not resolved here** — this repo ships a
+Status: **resolved at the architecture level by
+`../../../booth-architecture/decisions/0029-no-default-install-namespace.md`** —
+there is deliberately no fleet-wide default, by design (to preserve room for
+namespace strategies, like per-workspace or multi-instance installs, that aren't
+decided yet). This repo's own `defaultNamespace(moduleID)` silent fallback (described
+below) has been removed accordingly: `internal/api/server.go` now requires
+`namespace` explicitly on every install/uninstall call (400 if missing), and the
+native UI surfaces a confirmation step (pre-filled with a `suggestedNamespace` hint,
+never submitted without the user seeing it) before either call fires — see
+`web/src/components/ModuleCard.tsx`. Original flag text kept below for context.
+
+---
+
+Status (original, superseded above): **flagged back to the coordinator, not resolved here** — this repo ships a
 clearly-labeled interim default rather than deciding a fleet-wide convention
 unilaterally.
 

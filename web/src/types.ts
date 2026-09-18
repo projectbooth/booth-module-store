@@ -37,4 +37,11 @@ export interface CatalogEntry {
   manifestPreview?: ManifestPreview;
   source: Source;
   status: InstallStatus;
+  /** Pre-fill hint for an install/uninstall confirmation UI only (ADR 0029) — never
+   *  submitted without the user seeing and confirming it first. */
+  suggestedNamespace?: string;
 }
+
+/** Caller's role in the active workspace (ADR 0025). Matches booth-design's
+ *  NativeModuleProps contract (see docs/decisions/0003-native-module-props-contract.md). */
+export type WorkspaceRole = "owner" | "editor" | "viewer";

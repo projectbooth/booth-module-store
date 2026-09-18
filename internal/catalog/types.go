@@ -88,4 +88,9 @@ type Entry struct {
 
 	Source Source        `yaml:"-" json:"source"`
 	Status InstallStatus `yaml:"-" json:"status"`
+
+	// SuggestedNamespace is a pre-fill hint for an install/uninstall confirmation UI
+	// only (ADR 0029) — set by internal/api when building a catalog response, never
+	// applied as a silent default for the actual mutating call.
+	SuggestedNamespace string `yaml:"-" json:"suggestedNamespace,omitempty"`
 }

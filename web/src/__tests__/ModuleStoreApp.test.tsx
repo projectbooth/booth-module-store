@@ -12,6 +12,7 @@ const bundledStorage: CatalogEntry = {
   chart: { repoUrl: "oci://registry.example.com/charts", chartName: "storage", version: "1.0.0" },
   source: { kind: "bundled" },
   status: { state: "not_installed" },
+  suggestedNamespace: "booth-storage",
 };
 
 const registryForecast: CatalogEntry = {
@@ -20,18 +21,18 @@ const registryForecast: CatalogEntry = {
   category: "analytics",
   source: { kind: "registry", name: "https://registry.example.com" },
   status: { state: "installed", health: "Healthy" },
+  suggestedNamespace: "booth-acme-forecast",
 };
 
-function mockFetchOnce(entries: CatalogEntry[]) {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => entries,
-      text: async () => "",
-    }),
-  );
+function mockFetch(entries: CatalogEntry[]) {
+  const fetchMock = vi.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => entries,
+    text: async () => "",
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
 }
 
 describe("ModuleStoreApp", () => {
@@ -43,8 +44,8 @@ describe("ModuleStoreApp", () => {
   });
 
   it("loads and renders the catalog", async () => {
-    mockFetchOnce([bundledStorage, registryForecast]);
-    render(<ModuleStoreApp />);
+    mockFetch([bundledStorage, registryForecast]);
+    render(<ModuleStoreApp workspace="acme" role="owner" theme="light" />);
 
     expect(await screen.findByText("Storage")).toBeInTheDocument();
     expect(screen.getByText("Acme Forecast")).toBeInTheDocument();
@@ -52,9 +53,19 @@ describe("ModuleStoreApp", () => {
     expect(screen.getByText(/Registry:/)).toBeInTheDocument();
   });
 
+  it("sends the workspace as an X-Workspace header on every request", async () => {
+    const fetchMock = mockFetch([bundledStorage]);
+    render(<ModuleStoreApp workspace="acme-analytics" role="owner" theme="light" />);
+    await screen.findByText("Storage");
+
+    const [, init] = fetchMock.mock.calls[0];
+    const headers = new Headers(init.headers);
+    expect(headers.get("X-Workspace")).toBe("acme-analytics");
+  });
+
   it("filters by search query", async () => {
-    mockFetchOnce([bundledStorage, registryForecast]);
-    render(<ModuleStoreApp />);
+    mockFetch([bundledStorage, registryForecast]);
+    render(<ModuleStoreApp workspace="acme" role="owner" theme="light" />);
     await screen.findByText("Storage");
 
     await userEvent.type(screen.getByLabelText("Search modules"), "forecast");
@@ -64,12 +75,62 @@ describe("ModuleStoreApp", () => {
   });
 
   it("shows an error state when the catalog fails to load", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({ ok: false, status: 502, text: async () => "bad gateway" }),
-    );
-    render(<ModuleStoreApp />);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 502, text: async () => "bad gateway" }));
+    render(<ModuleStoreApp workspace="acme" role="owner" theme="light" />);
 
     await waitFor(() => expect(screen.getByText(/Couldn't load the Module Store/)).toBeInTheDocument());
+  });
+
+  it("hides install/uninstall actions for non-owner roles", async () => {
+    mockFetch([bundledStorage]);
+    render(<ModuleStoreApp workspace="acme" role="viewer" theme="light" />);
+    await screen.findByText("Storage");
+
+    expect(screen.queryByRole("button", { name: "Install" })).not.toBeInTheDocument();
+    expect(screen.getByText(/Only workspace owners can install or uninstall modules/)).toBeInTheDocument();
+  });
+
+  it("requires confirming a namespace before calling install (ADR 0029)", async () => {
+    const fetchMock = mockFetch([bundledStorage]);
+    render(<ModuleStoreApp workspace="acme" role="owner" theme="light" />);
+    await screen.findByText("Storage");
+
+    await userEvent.click(screen.getByRole("button", { name: "Install" }));
+
+    // Clicking "Install" opens a confirmation step, pre-filled with the suggested
+    // namespace, rather than calling the install API immediately.
+    const namespaceInput = await screen.findByLabelText("Target namespace");
+    expect(namespaceInput).toHaveValue("booth-storage");
+    expect(fetchMock).toHaveBeenCalledTimes(1); // only the initial catalog GET so far
+
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 202, json: async () => undefined, text: async () => "" });
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => [bundledStorage], text: async () => "" });
+
+    await userEvent.click(screen.getByRole("button", { name: "Confirm install" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3)); // + install POST + catalog reload
+
+    const [installUrl, installInit] = fetchMock.mock.calls[1];
+    expect(installUrl).toBe("/api/catalog/storage/install");
+    expect(JSON.parse(installInit.body)).toEqual({ namespace: "booth-storage" });
+  });
+
+  it("lets the user change the namespace before confirming install", async () => {
+    const fetchMock = mockFetch([bundledStorage]);
+    render(<ModuleStoreApp workspace="acme" role="owner" theme="light" />);
+    await screen.findByText("Storage");
+
+    await userEvent.click(screen.getByRole("button", { name: "Install" }));
+    const namespaceInput = await screen.findByLabelText("Target namespace");
+    await userEvent.clear(namespaceInput);
+    await userEvent.type(namespaceInput, "team-3-storage");
+
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 202, json: async () => undefined, text: async () => "" });
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => [bundledStorage], text: async () => "" });
+    await userEvent.click(screen.getByRole("button", { name: "Confirm install" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    const [, installInit] = fetchMock.mock.calls[1];
+    expect(JSON.parse(installInit.body)).toEqual({ namespace: "team-3-storage" });
   });
 });
