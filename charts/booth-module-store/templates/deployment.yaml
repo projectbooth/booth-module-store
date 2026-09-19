@@ -33,6 +33,8 @@ spec:
               value: {{ .Values.oidc.clientId | quote }}
             - name: BOOTH_OIDC_REQUIRE_AUDIENCE
               value: {{ .Values.oidc.requireAudience | quote }}
+            - name: BOOTH_OIDC_GROUPS_CLAIM
+              value: {{ .Values.oidc.groupsClaim | quote }}
             {{- if .Values.bundledCatalogPath }}
             - name: BOOTH_MODULE_STORE_BUNDLED_CATALOG_PATH
               value: {{ .Values.bundledCatalogPath | quote }}

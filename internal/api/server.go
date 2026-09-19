@@ -22,7 +22,7 @@ import (
 
 // Deps is everything the HTTP layer needs, assembled by cmd/module-store/main.go.
 type Deps struct {
-	Verifier       *auth.Verifier
+	Verifier       auth.TokenVerifier
 	Core           *coreclient.Client
 	Bundled        []catalog.Entry
 	RegistryURLs   []string

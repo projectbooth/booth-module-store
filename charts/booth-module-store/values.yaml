@@ -21,6 +21,10 @@ oidc:
   issuerUrl: ""
   clientId: ""
   requireAudience: true
+  # Token claim carrying workspace memberships ("/workspaces/<slug>/<role>", ADR 0025),
+  # read to re-derive the caller's role from the token itself rather than trusting the
+  # forwarded X-Booth-Role header alone (ADR 0041). Must match booth-core's own setting.
+  groupsClaim: groups
 
 core:
   # Where booth-core's own API lives (GET /api/modules, install/uninstall) — the

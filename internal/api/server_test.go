@@ -247,3 +247,35 @@ func TestHandleUninstall_WithExplicitNamespace(t *testing.T) {
 		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
 	}
 }
+
+type staticVerifier struct{ claims *auth.Claims }
+
+func (s staticVerifier) Verify(context.Context, string) (*auth.Claims, error) { return s.claims, nil }
+
+// TestRouter_ForgedRoleHeaderNeverReachesCore is the ADR 0041 guard at the routing level:
+// a genuine viewer token sent straight to this pod with a forged "X-Booth-Role: owner"
+// must be rejected by the middleware, without booth-core ever being called.
+func TestRouter_ForgedRoleHeaderNeverReachesCore(t *testing.T) {
+	core := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("booth-core must not be called for a forged-role request, got %s %s", r.Method, r.URL.Path)
+	}))
+	defer core.Close()
+
+	router := NewRouter(Deps{
+		Verifier:       staticVerifier{claims: &auth.Claims{Subject: "u1", Groups: []string{"/workspaces/acme/viewer"}}},
+		Core:           coreclient.New(core.URL),
+		Bundled:        []catalog.Entry{{ID: "storage", Chart: catalog.ChartRef{ChartName: "storage"}}},
+		RegistryClient: catalog.NewRegistryClient(),
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/catalog/storage/install", strings.NewReader(`{"namespace":"booth-storage"}`))
+	req.Header.Set("Authorization", "Bearer tok")
+	req.Header.Set("X-Booth-Workspace", "acme")
+	req.Header.Set("X-Booth-Role", "owner")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", rec.Code)
+	}
+}

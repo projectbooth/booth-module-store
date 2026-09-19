@@ -2,15 +2,16 @@
 // requirement in contracts/core-platform-api.md: "a module must independently verify
 // the identity core forwards it rather than trusting the network path implicitly."
 //
-// Unlike booth-core, this package does not derive workspace/role membership from a
-// groups claim itself — booth-core's gateway already resolved that and forwards it as
-// the X-Booth-Workspace/X-Booth-Role headers (ADR 0025), which this package trusts once
-// the request's bearer token has independently verified. This mirrors the same trust
-// boundary every other native-mode module sits behind.
+// That covers both authentication (the bearer token's signature, issuer and expiry,
+// verified here) and — per ADR 0041 — authorization: the workspace role is re-derived
+// from the verified token's own groups claim (role.go), never taken on trust from the
+// gateway-forwarded X-Booth-Role header, which anyone reaching this pod directly could
+// forge alongside a valid low-privilege token.
 package auth
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	oidc "github.com/coreos/go-oidc/v3/oidc"
@@ -21,13 +22,24 @@ import (
 // Claims is the subset of a verified token this module cares about.
 type Claims struct {
 	Subject string
+	// Groups is the token's workspace-membership claim (ADR 0025), e.g.
+	// "/workspaces/acme/owner". Empty if the token carries none.
+	Groups []string
+}
+
+// TokenVerifier verifies a raw bearer token. *Verifier is the production
+// implementation; the interface exists so the HTTP middleware can be tested without a
+// live OIDC provider.
+type TokenVerifier interface {
+	Verify(ctx context.Context, rawToken string) (*Claims, error)
 }
 
 // Verifier verifies bearer tokens against the same OIDC provider booth-core is
 // configured against (signature via JWKS, issuer, expiry, and, per deployment policy,
-// audience).
+// audience), and reads the configured groups claim.
 type Verifier struct {
 	idTokenVerifier *oidc.IDTokenVerifier
+	groupsClaim     string
 }
 
 func NewVerifier(ctx context.Context, cfg config.OIDCConfig) (*Verifier, error) {
@@ -41,7 +53,12 @@ func NewVerifier(ctx context.Context, cfg config.OIDCConfig) (*Verifier, error) 
 		ClientID:          cfg.ClientID,
 	}
 
-	return &Verifier{idTokenVerifier: provider.Verifier(verifierCfg)}, nil
+	claim := cfg.GroupsClaim
+	if claim == "" {
+		claim = config.DefaultGroupsClaim
+	}
+
+	return &Verifier{idTokenVerifier: provider.Verifier(verifierCfg), groupsClaim: claim}, nil
 }
 
 func (v *Verifier) Verify(ctx context.Context, rawToken string) (*Claims, error) {
@@ -52,5 +69,17 @@ func (v *Verifier) Verify(ctx context.Context, rawToken string) (*Claims, error)
 	if idToken.Subject == "" {
 		return nil, fmt.Errorf("token missing subject")
 	}
-	return &Claims{Subject: idToken.Subject}, nil
+
+	var raw map[string]json.RawMessage
+	if err := idToken.Claims(&raw); err != nil {
+		return nil, fmt.Errorf("reading token claims: %w", err)
+	}
+	var groups []string
+	if g, ok := raw[v.groupsClaim]; ok {
+		// A claim of the wrong shape is treated as "no groups" (fail closed), not an
+		// error: the token is genuine, it simply grants no workspace role.
+		_ = json.Unmarshal(g, &groups)
+	}
+
+	return &Claims{Subject: idToken.Subject, Groups: groups}, nil
 }

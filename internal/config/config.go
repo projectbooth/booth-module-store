@@ -44,7 +44,16 @@ type OIDCConfig struct {
 	IssuerURL       string
 	ClientID        string
 	RequireAudience bool
+
+	// GroupsClaim names the token claim carrying workspace memberships, read to
+	// re-derive the caller's role from the token itself (ADR 0041). Configurable because
+	// not every OIDC provider calls it "groups"; must match booth-core's own
+	// BOOTH_OIDC_GROUPS_CLAIM. Empty means DefaultGroupsClaim.
+	GroupsClaim string
 }
+
+// DefaultGroupsClaim matches booth-core's default (ADR 0025).
+const DefaultGroupsClaim = "groups"
 
 func Load() (Config, error) {
 	cfg := Config{
@@ -56,6 +65,7 @@ func Load() (Config, error) {
 			IssuerURL:       os.Getenv("BOOTH_OIDC_ISSUER_URL"),
 			ClientID:        os.Getenv("BOOTH_OIDC_CLIENT_ID"),
 			RequireAudience: os.Getenv("BOOTH_OIDC_REQUIRE_AUDIENCE") == "true",
+			GroupsClaim:     getEnv("BOOTH_OIDC_GROUPS_CLAIM", DefaultGroupsClaim),
 		},
 	}
 

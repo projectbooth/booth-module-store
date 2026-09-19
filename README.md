@@ -92,6 +92,26 @@ test/integration/        real-cluster (kind) smoke test — see its own README f
   landed is `getAccessToken: () => string | null` — a callback, not a value, so it
   can't go stale across a silently-refreshed token.
 
+## Role derivation from the token (ADR 0041)
+
+`internal/auth` re-verifies the bearer token itself and derives the caller's workspace
+role from the token's own groups claim (`role.go`) rather than trusting the
+gateway-forwarded `X-Booth-Role` header, which anyone reaching the pod directly could
+forge alongside a valid low-privilege token. If the header claims a role stronger than
+the token grants for that workspace (or isn't a role at all), the request is rejected
+with a 403; a weaker header is honored (a gateway may narrow, never widen), and an
+absent one falls back to the token's role. A token granting no role in the requested
+workspace is a 403 too.
+
+The claim name is deployment config — `BOOTH_OIDC_GROUPS_CLAIM` / the chart's
+`oidc.groupsClaim`, default `groups` — and must match `booth-core`'s own setting.
+
+For accuracy about scope: this module's routes don't currently make any decision *from*
+that role — install/uninstall forward the caller's own token to `booth-core`, which
+enforces owner-only itself. So no route here was exploitable through a forged header
+before this change; the derivation makes the identity's `Role` trustworthy for any
+future use and satisfies the contract's requirement regardless.
+
 ## Namespace confirmation (ADR 0029)
 
 There is no fleet-wide default install namespace, by design — `internal/api/server.go`
