@@ -1,6 +1,6 @@
 {
   "name": "@projectbooth/module-store-ui",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "type": "module",
   "description": "Native-mode Module Store UI (ADR 0027/0030): a self-contained component booth-design mounts via its src/lib/nativeModules.ts registry.",
   "license": "UNLICENSED",

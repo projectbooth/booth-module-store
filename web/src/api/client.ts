@@ -1,11 +1,13 @@
 import type { CatalogEntry } from "../types";
 
-// Relative paths: in a real deployment, this component is mounted by booth-design's
-// shell and its requests reach booth-core's gateway at
-// /modules/module-store/api/... (contracts/ui-integration.md's native-mode pattern),
-// which strips the /modules/module-store prefix before forwarding here. The dev
-// harness's Vite proxy (vite.config.ts) makes the same relative paths work standalone.
-const BASE = "/api";
+// This component is mounted by booth-design's shell, so its requests resolve against the
+// shell's origin and must go through booth-core's gateway at /modules/{id}/* — the same
+// proxy every module's own backend is reached through — which strips the
+// /modules/module-store prefix before forwarding to this repo's own backend routes
+// (/api/catalog...). A bare "/api/..." here would instead hit booth-core's own API,
+// which has no /api/catalog route at all. The dev harness's Vite proxy (vite.config.ts)
+// mimics the same prefix-stripping so the identical paths work standalone.
+const BASE = "/modules/module-store/api";
 
 export type GetAccessToken = () => string | null;
 

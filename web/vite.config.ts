@@ -34,9 +34,12 @@ export default defineConfig(({ command }) => ({
       // /modules/module-store/* to this service's own /api/* routes in a real
       // deployment. Pointed at BOOTH_MODULE_STORE_DEV_BACKEND when set, so `npm run
       // dev` can hit a locally running Go backend without CORS juggling.
-      "/api": {
+      "/modules/module-store": {
         target: process.env.BOOTH_MODULE_STORE_DEV_BACKEND ?? "http://localhost:8080",
         changeOrigin: true,
+        // Mimics the gateway's prefix-stripping: /modules/module-store/api/catalog
+        // reaches the backend as /api/catalog.
+        rewrite: (path) => path.replace(/^\/modules\/module-store/, ""),
       },
     },
   },

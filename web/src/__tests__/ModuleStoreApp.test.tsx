@@ -66,6 +66,28 @@ describe("ModuleStoreApp", () => {
     expect(headers.get("Authorization")).toBe("Bearer the-real-token");
   });
 
+  // Regression guard: this component is mounted in booth-design's shell, so its calls must
+  // go through booth-core's /modules/{id}/* gateway proxy. A bare /api/catalog resolves
+  // against booth-core's own API, which has no such route (404).
+  it("calls the catalog through booth-core's /modules/module-store gateway prefix, not a bare /api path", async () => {
+    const installedStorage: CatalogEntry = { ...bundledStorage, status: { state: "installed", health: "Healthy" } };
+    const fetchMock = mockFetch([installedStorage]);
+    render(<ModuleStoreApp workspace="acme" role="owner" theme="light" getAccessToken={() => "test-token"} />);
+    await screen.findByText("Storage");
+
+    expect(fetchMock.mock.calls[0][0]).toBe("/modules/module-store/api/catalog");
+
+    await userEvent.click(screen.getByRole("button", { name: "Uninstall" }));
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 202, json: async () => undefined, text: async () => "" });
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => [bundledStorage], text: async () => "" });
+    await userEvent.click(screen.getByRole("button", { name: "Confirm uninstall" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    const [uninstallUrl, uninstallInit] = fetchMock.mock.calls[1];
+    expect(uninstallUrl).toBe("/modules/module-store/api/catalog/storage?namespace=booth-storage");
+    expect(uninstallInit.method).toBe("DELETE");
+  });
+
   it("omits the Authorization header entirely when getAccessToken returns null, rather than sending the literal string (ADR 0033)", async () => {
     const fetchMock = mockFetch([bundledStorage]);
     render(<ModuleStoreApp workspace="acme" role="owner" theme="light" getAccessToken={() => null} />);
@@ -124,7 +146,7 @@ describe("ModuleStoreApp", () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3)); // + install POST + catalog reload
 
     const [installUrl, installInit] = fetchMock.mock.calls[1];
-    expect(installUrl).toBe("/api/catalog/storage/install");
+    expect(installUrl).toBe("/modules/module-store/api/catalog/storage/install");
     expect(JSON.parse(installInit.body)).toEqual({ namespace: "booth-storage" });
   });
 
