@@ -27,9 +27,17 @@ oidc:
   groupsClaim: groups
 
 core:
-  # Where booth-core's own API lives (GET /api/modules, install/uninstall) — the
-  # in-cluster Service DNS name by default.
-  baseUrl: "http://booth-core"
+  # Where booth-core's own API lives (GET /api/modules, install/uninstall). Must be a
+  # fully namespace-qualified in-cluster name: this chart installs into its own
+  # namespace, and Kubernetes DNS only resolves a bare Service name ("http://booth-core")
+  # from within the *same* namespace as the target — so a bare name fails with "no such
+  # host" in every install except one that happens to share booth-core's namespace.
+  #
+  # The default assumes booth-core's own chart defaults: release name "booth-core" (its
+  # Service name) in namespace "booth-system", port 8080 — the same in-cluster
+  # convention booth-design's chart defaults to. Override it if booth-core was installed
+  # under a different release name or namespace.
+  baseUrl: "http://booth-core.booth-system.svc:8080"
 
 # Bundled catalog override (ADR 0027's "a deployment can extend the bundled list via
 # its own config for private/custom modules"). Empty means: use this chart's embedded

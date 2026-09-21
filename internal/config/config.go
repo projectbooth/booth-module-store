@@ -52,13 +52,19 @@ type OIDCConfig struct {
 	GroupsClaim string
 }
 
+// DefaultCoreBaseURL is where booth-core lives under its own chart's defaults (release
+// "booth-core", namespace "booth-system", port 8080), fully namespace-qualified. A bare
+// "http://booth-core" would only resolve from inside booth-core's own namespace, which
+// this module — installed into its own — is not in.
+const DefaultCoreBaseURL = "http://booth-core.booth-system.svc:8080"
+
 // DefaultGroupsClaim matches booth-core's default (ADR 0025).
 const DefaultGroupsClaim = "groups"
 
 func Load() (Config, error) {
 	cfg := Config{
 		HTTPAddr:           getEnv("BOOTH_HTTP_ADDR", ":8080"),
-		CoreBaseURL:        getEnv("BOOTH_CORE_BASE_URL", "http://booth-core"),
+		CoreBaseURL:        getEnv("BOOTH_CORE_BASE_URL", DefaultCoreBaseURL),
 		BundledCatalogPath: os.Getenv("BOOTH_MODULE_STORE_BUNDLED_CATALOG_PATH"),
 		RegistryURLs:       splitNonEmpty(os.Getenv("BOOTH_MODULE_STORE_REGISTRIES")),
 		OIDC: OIDCConfig{
