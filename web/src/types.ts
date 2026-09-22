@@ -42,8 +42,17 @@ export interface CatalogEntry {
   source: Source;
   status: InstallStatus;
   /** Pre-fill hint for an install/uninstall confirmation UI only (ADR 0029) — never
-   *  submitted without the user seeing and confirming it first. */
+   *  submitted without the user seeing and confirming it first. A guess
+   *  ("booth-<id>"), not a fact — the only thing available before install, and the
+   *  fallback after install if `namespace` below is somehow still absent. */
   suggestedNamespace?: string;
+  /** The module's real install namespace, from booth-core's registry (ADR 0060) —
+   *  present when installed and booth-core supports it. A fact, not a guess: the
+   *  confirm-uninstall pre-fill must prefer this over `suggestedNamespace` — using the
+   *  guess for an already-installed module can pre-fill the wrong namespace, and
+   *  booth-core's uninstall treats "not found in that namespace" as success, so the
+   *  wrong guess silently removes nothing instead of erroring. */
+  namespace?: string;
 }
 
 /** Caller's role in the active workspace (ADR 0025). Matches

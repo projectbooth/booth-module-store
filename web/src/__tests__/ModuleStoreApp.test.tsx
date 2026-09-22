@@ -88,6 +88,33 @@ describe("ModuleStoreApp", () => {
     expect(uninstallInit.method).toBe("DELETE");
   });
 
+  // ADR 0060 regression guard: a module installed into a namespace other than the
+  // "booth-<id>" guess must pre-fill its real namespace on uninstall — pre-filling the
+  // guess would let uninstall silently no-op (booth-core treats "not found in that
+  // namespace" as success).
+  it("pre-fills the real namespace on uninstall, not the booth-<id> guess, when the module lives elsewhere", async () => {
+    const installedElsewhere: CatalogEntry = {
+      ...bundledStorage,
+      status: { state: "installed", health: "Healthy" },
+      namespace: "acme-storage-team-3",
+    };
+    const fetchMock = mockFetch([installedElsewhere]);
+    render(<ModuleStoreApp workspace="acme" role="owner" theme="light" getAccessToken={() => "test-token"} />);
+    await screen.findByText("Storage");
+
+    await userEvent.click(screen.getByRole("button", { name: "Uninstall" }));
+
+    const namespaceInput = await screen.findByLabelText("Target namespace");
+    expect(namespaceInput).toHaveValue("acme-storage-team-3");
+
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 202, json: async () => undefined, text: async () => "" });
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => [installedElsewhere], text: async () => "" });
+    await userEvent.click(screen.getByRole("button", { name: "Confirm uninstall" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    expect(fetchMock.mock.calls[1][0]).toBe("/modules/module-store/api/catalog/storage?namespace=acme-storage-team-3");
+  });
+
   it("omits the Authorization header entirely when getAccessToken returns null, rather than sending the literal string (ADR 0033)", async () => {
     const fetchMock = mockFetch([bundledStorage]);
     render(<ModuleStoreApp workspace="acme" role="owner" theme="light" getAccessToken={() => null} />);

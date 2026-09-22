@@ -112,14 +112,22 @@ enforces owner-only itself. So no route here was exploitable through a forged he
 before this change; the derivation makes the identity's `Role` trustworthy for any
 future use and satisfies the contract's requirement regardless.
 
-## Namespace confirmation (ADR 0029)
+## Namespace confirmation (ADR 0029/0060)
 
 There is no fleet-wide default install namespace, by design — `internal/api/server.go`
 requires `namespace` explicitly on every install/uninstall call (400 if omitted), and
 the native UI never calls either without the user first seeing and confirming (or
 changing) a value: clicking "Install"/"Uninstall" opens an inline confirmation step
-pre-filled with a `suggestedNamespace` hint from the catalog response
-(`booth-<module-id>`, informational only), not a silent default.
+pre-filled from the catalog response, not a silent default.
+
+Two different pre-fill sources, for two different reasons (ADR 0060): **install**
+pre-fills `suggestedNamespace` (a guess, `booth-<module-id>`) — nothing real exists yet
+to know a better answer. **Uninstall** prefers `namespace` (a fact, from booth-core's
+registry) when the module is actually installed, falling back to `suggestedNamespace`
+only if booth-core hasn't supplied it. Pre-filling the guess for an already-installed
+module was a real bug, found live: booth-core's uninstall treats "not found in that
+namespace" as success (correct idempotency on its own), so a wrong guess uninstalled
+nothing and reported success with no error anywhere.
 
 ## Publishing the UI package
 

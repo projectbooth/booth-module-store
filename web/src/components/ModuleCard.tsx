@@ -35,7 +35,13 @@ export function ModuleCard({
   const canManage = role === "owner";
 
   function startConfirm(action: Action) {
-    setState({ kind: "confirming", action, namespace: entry.suggestedNamespace ?? "" });
+    // ADR 0060: for uninstall, prefer the module's real namespace over the
+    // "booth-<id>" guess — an already-installed module may live somewhere else, and
+    // pre-filling the guess would let uninstall silently no-op (booth-core treats
+    // "not found in that namespace" as success). The guess is the only thing
+    // available for install, since nothing real exists there yet.
+    const namespace = (action === "uninstall" ? entry.namespace : undefined) ?? entry.suggestedNamespace ?? "";
+    setState({ kind: "confirming", action, namespace });
   }
 
   // ADR 0029: there is no fleet-wide default install namespace. The installing user

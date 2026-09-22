@@ -91,6 +91,58 @@ func TestHandleGetCatalog_MergesAndCrossReferences(t *testing.T) {
 	}
 }
 
+// TestHandleGetCatalog_RealNamespaceOverridesGuess is the ADR 0060 regression guard: a
+// module installed into a namespace other than the "booth-<id>" guess must surface its
+// real namespace, so the confirm-uninstall UI doesn't pre-fill a value that silently
+// no-ops against booth-core's idempotent uninstall.
+func TestHandleGetCatalog_RealNamespaceOverridesGuess(t *testing.T) {
+	core := fakeCoreServer(t, []coreclient.Module{{ID: "storage", Phase: "Healthy", Namespace: "acme-storage-team-3"}})
+	defer core.Close()
+
+	deps := Deps{
+		Core:           coreclient.New(core.URL),
+		Bundled:        []catalog.Entry{{ID: "storage", DisplayName: "Storage"}},
+		RegistryClient: catalog.NewRegistryClient(),
+	}
+
+	req := withTestIdentity(httptest.NewRequest(http.MethodGet, "/api/catalog", nil))
+	rec := httptest.NewRecorder()
+	handleGetCatalog(deps)(rec, req)
+
+	var got []catalog.Entry
+	json.Unmarshal(rec.Body.Bytes(), &got)
+	if got[0].Namespace != "acme-storage-team-3" {
+		t.Errorf("Namespace = %q, want the real namespace from booth-core's registry, not the booth-<id> guess", got[0].Namespace)
+	}
+	if got[0].SuggestedNamespace != "booth-storage" {
+		t.Errorf("SuggestedNamespace = %q, want the guess to still be present as the install-flow fallback", got[0].SuggestedNamespace)
+	}
+}
+
+// TestHandleGetCatalog_MissingNamespaceFromOlderCore is tolerance for a booth-core that
+// hasn't shipped ADR 0060 yet — Namespace stays empty rather than erroring, leaving
+// SuggestedNamespace as the only pre-fill available.
+func TestHandleGetCatalog_MissingNamespaceFromOlderCore(t *testing.T) {
+	core := fakeCoreServer(t, []coreclient.Module{{ID: "storage", Phase: "Healthy"}}) // no Namespace field
+	defer core.Close()
+
+	deps := Deps{
+		Core:           coreclient.New(core.URL),
+		Bundled:        []catalog.Entry{{ID: "storage", DisplayName: "Storage"}},
+		RegistryClient: catalog.NewRegistryClient(),
+	}
+
+	req := withTestIdentity(httptest.NewRequest(http.MethodGet, "/api/catalog", nil))
+	rec := httptest.NewRecorder()
+	handleGetCatalog(deps)(rec, req)
+
+	var got []catalog.Entry
+	json.Unmarshal(rec.Body.Bytes(), &got)
+	if got[0].Namespace != "" {
+		t.Errorf("Namespace = %q, want empty when booth-core doesn't supply one", got[0].Namespace)
+	}
+}
+
 func TestHandleInstall_UnknownEntry(t *testing.T) {
 	core := fakeCoreServer(t, nil)
 	defer core.Close()

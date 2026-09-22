@@ -20,6 +20,10 @@ import (
 type Module struct {
 	ID    string `json:"id"`
 	Phase string `json:"phase"`
+	// Namespace is the module's real install namespace (ADR 0060). Empty against an
+	// older booth-core that doesn't serialize it yet — an additive, optional field,
+	// not a hard version dependency.
+	Namespace string `json:"namespace,omitempty"`
 }
 
 // Client calls booth-core's own API, authenticating as whichever caller's identity it

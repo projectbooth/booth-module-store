@@ -1,10 +1,21 @@
 package catalog
 
-// InstalledLookup answers "is module id installed, and how healthy is it", per
-// booth-core's own registry (coreclient.Module). Declared as an interface here so this
-// package doesn't need to import the HTTP client just to merge.
+// InstalledInfo is what booth-core's registry (GET /api/modules) can tell us about one
+// installed module.
+type InstalledInfo struct {
+	Health string
+	// Namespace is the module's real install namespace (ADR 0060), empty if
+	// booth-core hasn't shipped that field yet — an older booth-core is not a hard
+	// dependency, this repo just falls back to SuggestedNamespace's guess.
+	Namespace string
+}
+
+// InstalledLookup answers "is module id installed, and what does booth-core's own
+// registry say about it", per booth-core's own registry (coreclient.Module). Declared
+// as an interface here so this package doesn't need to import the HTTP client just to
+// merge.
 type InstalledLookup interface {
-	Lookup(id string) (health string, installed bool)
+	Lookup(id string) (info InstalledInfo, installed bool)
 }
 
 // Merge combines the bundled tier with zero or more registry tiers into one catalog
@@ -26,9 +37,10 @@ func Merge(bundled []Entry, registryTiers [][]Entry, installed InstalledLookup) 
 	}
 
 	for i := range out {
-		health, isInstalled := installed.Lookup(out[i].ID)
+		info, isInstalled := installed.Lookup(out[i].ID)
 		if isInstalled {
-			out[i].Status = InstallStatus{State: Installed, Health: health}
+			out[i].Status = InstallStatus{State: Installed, Health: info.Health}
+			out[i].Namespace = info.Namespace
 		} else {
 			out[i].Status = InstallStatus{State: NotInstalled}
 		}

@@ -99,6 +99,17 @@ type Entry struct {
 	// only (ADR 0029) — set by internal/api when building a catalog response, never
 	// applied as a silent default for the actual mutating call.
 	SuggestedNamespace string `yaml:"-" json:"suggestedNamespace,omitempty"`
+
+	// Namespace is the module's real install namespace, from booth-core's registry
+	// (ADR 0060, GET /api/modules), when the module is actually installed. Unlike
+	// SuggestedNamespace this is a fact, not a guess — the confirm-uninstall UI must
+	// prefer it over SuggestedNamespace when present, since a module installed into a
+	// non-default namespace would otherwise have uninstall silently no-op (ADR 0060's
+	// finding: booth-core's own "not found = success" uninstall idempotency means a
+	// wrong-namespace guess reports success while removing nothing). Only meaningful
+	// when Status.State == Installed; empty for a not-installed entry or if booth-core
+	// hasn't shipped the field yet.
+	Namespace string `yaml:"-" json:"namespace,omitempty"`
 }
 
 // HasChart reports whether this entry has any chart location at all, structured or

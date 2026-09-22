@@ -77,11 +77,11 @@ func fetchRegistryTiers(ctx context.Context, deps Deps) [][]catalog.Entry {
 	return tiers
 }
 
-type coreInstalledLookup map[string]string // id -> phase
+type coreInstalledLookup map[string]catalog.InstalledInfo
 
-func (l coreInstalledLookup) Lookup(id string) (string, bool) {
-	phase, ok := l[id]
-	return phase, ok
+func (l coreInstalledLookup) Lookup(id string) (catalog.InstalledInfo, bool) {
+	info, ok := l[id]
+	return info, ok
 }
 
 func handleGetCatalog(deps Deps) http.HandlerFunc {
@@ -101,7 +101,7 @@ func handleGetCatalog(deps Deps) http.HandlerFunc {
 		}
 		lookup := make(coreInstalledLookup, len(modules))
 		for _, m := range modules {
-			lookup[m.ID] = m.Phase
+			lookup[m.ID] = catalog.InstalledInfo{Health: m.Phase, Namespace: m.Namespace}
 		}
 
 		merged := catalog.Merge(deps.Bundled, tiers, lookup)
