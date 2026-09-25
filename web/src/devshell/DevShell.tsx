@@ -95,7 +95,10 @@ export function DevShell() {
           </button>
         </div>
       </header>
-      <main>
+      {/* p-6 here stands in for booth-design's own NativeModulePane wrapper (ADR 0072:
+          the shell owns outer padding around every native module, not the module
+          itself) — kept in the harness only so it doesn't look squished standalone. */}
+      <main className="p-6">
         <ModuleStoreApp workspace={workspace} role={role} theme={theme} getAccessToken={getAccessToken} />
       </main>
     </div>

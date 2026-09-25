@@ -43,6 +43,15 @@ package's own stylesheet ships without Tailwind's base/reset layer deliberately 
 second global reset from a dependency would fight with the host shell's own), so it's
 components/utilities-only and additive.
 
+**Outer padding is the shell's responsibility (ADR 0072).** `ModuleStoreApp`'s root
+adds no outer page padding of its own — `booth-design`'s `NativeModulePane` wraps every
+mounted native component in one standard padding, shipped in its commit `5929bf9`. An
+earlier version of this component added its own `p-6`, the one thing keeping it from
+looking squished before the shell-level fix existed; removed once that fix was
+confirmed live, per ADR 0072's explicit warning not to remove it any earlier and end
+up unpadded in the gap between the two changes. The dev harness (`DevShell.tsx`) adds
+`p-6` to its own `<main>` to stand in for the shell's wrapper locally.
+
 ## Repo layout
 
 ```

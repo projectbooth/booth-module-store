@@ -43,6 +43,19 @@ describe("ModuleStoreApp", () => {
     vi.unstubAllGlobals();
   });
 
+  // ADR 0072 regression guard: booth-design's shell now owns outer padding around
+  // every native module (NativeModulePane wraps mounted components in its own p-6,
+  // shipped in booth-design commit 5929bf9); this component's root must not add its
+  // own, or the two double up.
+  it("does not add its own outer padding — the shell owns that (ADR 0072)", async () => {
+    mockFetch([bundledStorage]);
+    const { container } = render(<ModuleStoreApp workspace="acme" role="owner" theme="light" getAccessToken={() => "test-token"} />);
+    await screen.findByText("Storage");
+
+    const root = container.firstElementChild;
+    expect(root?.className).not.toMatch(/(^|\s)p-\d/);
+  });
+
   it("loads and renders the catalog", async () => {
     mockFetch([bundledStorage, registryForecast]);
     render(<ModuleStoreApp workspace="acme" role="owner" theme="light" getAccessToken={() => "test-token"} />);

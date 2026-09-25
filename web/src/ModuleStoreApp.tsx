@@ -71,7 +71,7 @@ export function ModuleStoreApp({ workspace, role, theme, getAccessToken }: Modul
   const filtered = useMemo(() => filterCatalog(entries ?? [], { query, category }), [entries, query, category]);
 
   return (
-    <div data-theme={theme} className="flex flex-col gap-4 p-6">
+    <div data-theme={theme} className="flex flex-col gap-4">
       {error && <p className="text-sm text-red-600 dark:text-red-400">Couldn't load the Module Store: {error}</p>}
       {!error && entries === null && <p className="text-sm text-slate-500 dark:text-slate-400">Loading modules…</p>}
       {!error && entries !== null && (
