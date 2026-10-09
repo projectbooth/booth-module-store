@@ -35,6 +35,8 @@ spec:
               value: {{ .Values.oidc.requireAudience | quote }}
             - name: BOOTH_OIDC_GROUPS_CLAIM
               value: {{ .Values.oidc.groupsClaim | quote }}
+            - name: BOOTH_OIDC_JWKS_URL
+              value: {{ .Values.oidc.jwksUrl | quote }}
             {{- if .Values.bundledCatalogPath }}
             - name: BOOTH_MODULE_STORE_BUNDLED_CATALOG_PATH
               value: {{ .Values.bundledCatalogPath | quote }}

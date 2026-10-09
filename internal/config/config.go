@@ -50,6 +50,17 @@ type OIDCConfig struct {
 	// not every OIDC provider calls it "groups"; must match booth-core's own
 	// BOOTH_OIDC_GROUPS_CLAIM. Empty means DefaultGroupsClaim.
 	GroupsClaim string
+
+	// JWKSURL, if set, overrides where signing keys are fetched from (ADR 0108):
+	// instead of discovery against IssuerURL, keys are fetched directly from this URL,
+	// while `iss` is still validated exactly against IssuerURL. This lets a deployment
+	// decouple key fetching from the issuer's own reachability/certificate — e.g. the
+	// bundled install points this at Keycloak's in-cluster Service over plain http so
+	// no pod needs to trust the Ingress's certificate. Empty (the default) means
+	// ordinary discovery, unchanged. The key fetch itself is in-cluster and
+	// unauthenticated, so it relies on NetworkPolicy and cluster trust, not on anything
+	// this field itself enforces.
+	JWKSURL string
 }
 
 // DefaultCoreBaseURL is where booth-core lives under its own chart's defaults (release
@@ -72,6 +83,7 @@ func Load() (Config, error) {
 			ClientID:        os.Getenv("BOOTH_OIDC_CLIENT_ID"),
 			RequireAudience: os.Getenv("BOOTH_OIDC_REQUIRE_AUDIENCE") == "true",
 			GroupsClaim:     getEnv("BOOTH_OIDC_GROUPS_CLAIM", DefaultGroupsClaim),
+			JWKSURL:         os.Getenv("BOOTH_OIDC_JWKS_URL"),
 		},
 	}
 
@@ -80,6 +92,15 @@ func Load() (Config, error) {
 	}
 	if cfg.OIDC.ClientID == "" {
 		return Config{}, fmt.Errorf("BOOTH_OIDC_CLIENT_ID is required")
+	}
+	// Checked unconditionally: BOOTH_OIDC_JWKS_URL names a key-fetch override for an
+	// issuer, so it is meaningless (and very likely a misconfiguration) without that
+	// issuer also being set. IssuerURL is already required above, so in practice this
+	// only ever fires if that requirement is ever relaxed — kept as its own check
+	// (matching booth-core's) so the two fields' relationship is enforced on its own
+	// terms, not as an accident of IssuerURL already being required for other reasons.
+	if cfg.OIDC.JWKSURL != "" && cfg.OIDC.IssuerURL == "" {
+		return Config{}, fmt.Errorf("BOOTH_OIDC_JWKS_URL is set but BOOTH_OIDC_ISSUER_URL is empty: the issuer is still required to validate `iss`")
 	}
 
 	return cfg, nil

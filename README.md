@@ -121,6 +121,23 @@ enforces owner-only itself. So no route here was exploitable through a forged he
 before this change; the derivation makes the identity's `Role` trustworthy for any
 future use and satisfies the contract's requirement regardless.
 
+## Key-fetch override (ADR 0108)
+
+An optional `BOOTH_OIDC_JWKS_URL` / chart value `oidc.jwksUrl` (default `""`) lets a
+deployment fetch signing keys directly from a URL instead of ordinary OIDC discovery,
+while `iss` is still validated exactly against `BOOTH_OIDC_ISSUER_URL`/`oidc.issuerUrl`.
+This exists for the bundled-install case: a deployment can point key fetching at
+Keycloak's in-cluster Service over plain `http`, so this module never needs to trust
+the Ingress's certificate just to verify tokens. Setting `jwksUrl` without `issuerUrl`
+is a startup error; the effective issuer and key source are logged once at startup
+(never the token itself). Leaving it unset is byte-for-byte today's discovery
+behaviour — every external-provider install is unaffected.
+
+**Trust assumption**: the key fetch itself is in-cluster and unauthenticated —
+anything that can reach the URL gets the keys, no credential or TLS required. This
+relies on `NetworkPolicy` and cluster trust, not on anything this field itself
+enforces; it is not a substitute for network-level isolation.
+
 ## Namespace confirmation (ADR 0029/0060)
 
 There is no fleet-wide default install namespace, by design — `internal/api/server.go`

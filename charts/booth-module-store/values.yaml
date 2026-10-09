@@ -25,6 +25,14 @@ oidc:
   # read to re-derive the caller's role from the token itself rather than trusting the
   # forwarded X-Booth-Role header alone (ADR 0041). Must match booth-core's own setting.
   groupsClaim: groups
+  # Key-fetch override (ADR 0108): when set, signing keys are fetched directly from
+  # this URL instead of discovery against issuerUrl, while `iss` is still validated
+  # exactly against issuerUrl. Lets a deployment point key fetching at an in-cluster
+  # address (e.g. the bundled Keycloak's Service over plain http) without this module
+  # needing to trust the Ingress certificate just to verify tokens. Setting this
+  # without issuerUrl is a startup error. Empty (the default) means ordinary
+  # discovery, unchanged — this is what every external-provider install uses today.
+  jwksUrl: ""
 
 core:
   # Where booth-core's own API lives (GET /api/modules, install/uninstall). Must be a
