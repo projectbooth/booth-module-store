@@ -8,8 +8,10 @@ package catalog
 // ChartRef is the structured chart location booth-core's install API accepts as an
 // alternative to a raw chartRef string (see Entry.ChartRef below) — either a local
 // path or a repo-hosted chart resolved by RepoURL+ChartName+Version, the same shape
-// `helm install --repo ...` uses. Used for this repo's own bundled catalog entries,
-// which are authored directly in this structured form.
+// `helm install --repo ...` uses. Available for a bundled entry authored directly in
+// this structured form, though every bundled entry as of ADR 0111's release train
+// uses the simpler raw Entry.ChartRef/ChartVersion form instead, now that every
+// module publishes a real `oci://` chart.
 type ChartRef struct {
 	Path      string `yaml:"path,omitempty" json:"path,omitempty"`
 	RepoURL   string `yaml:"repoUrl,omitempty" json:"repoUrl,omitempty"`
@@ -84,13 +86,16 @@ type Entry struct {
 	Chart           ChartRef        `yaml:"chart,omitempty" json:"chart,omitempty"`
 	ManifestPreview ManifestPreview `yaml:"manifestPreview,omitempty" json:"manifestPreview,omitempty"`
 
-	// ChartRef/ChartVersion are a registry entry's chart location passed through
-	// verbatim, unparsed (ADR 0028) — booth-core is now the one place chartRef
-	// parsing lives, not this repo. Set instead of Chart for every registry-sourced
-	// entry (see registryclient.go); bundled entries keep using the structured Chart
-	// field above, since this repo authors those directly.
-	ChartRef     string `yaml:"-" json:"chartRef,omitempty"`
-	ChartVersion string `yaml:"-" json:"chartVersion,omitempty"`
+	// ChartRef/ChartVersion are a chart location passed through verbatim, unparsed
+	// (ADR 0028) — booth-core is the one place chartRef parsing lives, not this repo.
+	// For a registry-sourced entry this is always set from the registry's own
+	// response (registryclient.go). For a bundled entry it's readable straight from
+	// bundled.yaml's own `chartRef`/`chartVersion` fields (ADR 0111) — the real,
+	// published `oci://ghcr.io/projectbooth/charts/<chart>` location of each module's
+	// release, the same wire shape module-registry-protocol.md already uses, rather
+	// than reconstructing the equivalent structured Chart value by hand.
+	ChartRef     string `yaml:"chartRef,omitempty" json:"chartRef,omitempty"`
+	ChartVersion string `yaml:"chartVersion,omitempty" json:"chartVersion,omitempty"`
 
 	Source Source        `yaml:"-" json:"source"`
 	Status InstallStatus `yaml:"-" json:"status"`

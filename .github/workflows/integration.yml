@@ -16,6 +16,65 @@ permissions:
   contents: read
 
 jobs:
+  bundled-chart-refs-exist:
+    # ADR 0111 item 6: a broken chartRef/chartVersion in bundled.yaml (a typo'd module
+    # name, a version that was never actually released) is a real-install failure
+    # mode, not a theoretical one. This checks every non-empty entry resolves on the
+    # real registry, anonymously, exactly the way a fresh install would — belongs here
+    # (network-dependent, slower), not in the per-push/PR ci.yml.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: azure/setup-helm@v4
+
+      - name: List every bundled entry's chartRef/chartVersion
+        run: |
+          cat > list_bundled_charts.go <<'GOEOF'
+          package main
+
+          import (
+          	"fmt"
+          	"os"
+
+          	"github.com/projectbooth/booth-module-store/internal/catalog"
+          )
+
+          func main() {
+          	entries, err := catalog.LoadBundled("")
+          	if err != nil {
+          		fmt.Fprintln(os.Stderr, err)
+          		os.Exit(1)
+          	}
+          	for _, e := range entries {
+          		if e.ChartRef != "" {
+          			fmt.Printf("%s %s\n", e.ChartRef, e.ChartVersion)
+          		}
+          	}
+          }
+          GOEOF
+          go run list_bundled_charts.go > /tmp/bundled-charts.txt
+          rm list_bundled_charts.go
+          echo "Entries to verify:"
+          cat /tmp/bundled-charts.txt
+
+      - name: Verify each chartRef/chartVersion resolves anonymously on the registry
+        run: |
+          fail=0
+          while read -r ref ver; do
+            [ -z "$ref" ] && continue
+            echo "== $ref @ $ver =="
+            if ! helm show chart "$ref" --version "$ver"; then
+              echo "::error::chartRef $ref @ $ver does not resolve on the registry"
+              fail=1
+            fi
+          done < /tmp/bundled-charts.txt
+          exit "$fail"
+
   kind-deploy:
     runs-on: ubuntu-24.04
     steps:
