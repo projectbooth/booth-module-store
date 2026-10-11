@@ -90,3 +90,14 @@ jobs:
             --namespace booth-system \
             --set oidc.issuerUrl=https://keycloak.example.com/realms/booth \
             --set oidc.clientId=booth-module-store > /dev/null
+
+      - name: helm package + template the packaged .tgz (release.yml rehearsal, ADR 0111)
+        # Packages and renders the chart the exact way release.yml will at tag time, so
+        # a change that breaks packaging (a bad Chart.yaml field, a template that only
+        # renders from source but not from the packaged archive) fails fast on every
+        # push instead of silently rotting until the next real release.
+        run: |
+          helm package charts/booth-module-store --version 0.0.0-ci --app-version 0.0.0-ci --destination /tmp/dist
+          helm template ci /tmp/dist/booth-module-store-0.0.0-ci.tgz \
+            --set oidc.issuerUrl=https://keycloak.example.com/realms/booth \
+            --set oidc.clientId=booth-module-store > /dev/null
