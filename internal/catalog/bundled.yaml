@@ -5,13 +5,17 @@
 # the shell that's showing you the store.
 #
 # This must work with zero network access (ADR 0027) — it ships as part of this
-# repo's own release and requires no external registry.
+# repo's own release and requires no external registry. chartRef/chartVersion below
+# point at a real, already-published oci:// chart (ADR 0111's release train); only the
+# actual install call needs network access, browsing this bundled list never does.
 #
-# `chart` is intentionally empty for every entry below: as of this seed, none of these
-# module repos have published a Helm chart yet (MODULE_REGISTRY.md status: "not
-# started" for all of them). Attempting to install an entry with no chart returns a
-# clear error rather than guessing at a chart location — see internal/api's install
-# handler. Fill in `chart` for a module once its repo publishes a real chart reference.
+# chartRef/chartVersion (ADR 0111, ADR 0028): the real published location of each
+# module's released Helm chart — oci://ghcr.io/projectbooth/charts/<chart> plus its
+# version, exactly the wire shape module-registry-protocol.md uses for a registry
+# entry, passed through to booth-core unparsed. Left empty for a module with no
+# published chart yet (superset, metabase as of this seed) — listed so a user can see
+# it exists, but not installable until one exists; see internal/api's install handler
+# for the resulting error.
 #
 # `category` and `manifestPreview` are this repo's own best-effort classification,
 # derived from ARCHITECTURE.md/MODULE_REGISTRY.md/ui-integration.md — not yet confirmed
@@ -21,13 +25,19 @@
 #
 # Keeping this file in sync with MODULE_REGISTRY.md as new modules are added is a
 # manual step for now (ADR 0027's consequences section, flagged as v1 automation
-# opportunity) — see docs/bundled-catalog-sync.md for a proposed approach.
+# opportunity) — see docs/bundled-catalog-sync.md for a proposed approach. This pass
+# (ADR 0111 item 6) also added booth-lakehouse and booth-database, both real
+# module-type MODULE_REGISTRY.md rows with a published chart that this file had simply
+# never been updated to include — not a deliberate exclusion, a staleness gap (both
+# were added to MODULE_REGISTRY.md on 2026-09-28, after this file's last manual sync).
 
 - id: storage
   displayName: Storage
   icon: drive
   description: S3-compatible, filesystem, Azure Blob, and GCS backends for platform data.
   category: data
+  chartRef: oci://ghcr.io/projectbooth/charts/booth-storage
+  chartVersion: "0.1.0"
   manifestPreview:
     hasOwnUi: true
     uiIntegrationMode: native
@@ -38,6 +48,8 @@
   icon: book
   description: Browsable, lineage-tracked catalog of datasets, code, and dashboards.
   category: data
+  chartRef: oci://ghcr.io/projectbooth/charts/booth-catalog
+  chartVersion: "0.1.0"
   manifestPreview:
     hasOwnUi: true
     uiIntegrationMode: native
@@ -48,6 +60,8 @@
   icon: workflow
   description: Dagster-backed pipeline engine with a graphical DAG builder.
   category: build
+  chartRef: oci://ghcr.io/projectbooth/charts/booth-pipeline
+  chartVersion: "0.1.0"
   manifestPreview:
     hasOwnUi: true
     uiIntegrationMode: native
@@ -58,6 +72,8 @@
   icon: notebook
   description: JupyterHub-backed notebooks with per-user isolated kernels.
   category: build
+  chartRef: oci://ghcr.io/projectbooth/charts/booth-notebooks
+  chartVersion: "0.1.0"
   manifestPreview:
     hasOwnUi: true
     uiIntegrationMode: iframe-proxy
@@ -68,6 +84,9 @@
   icon: bar-chart
   description: Point-and-click BI dashboards, powered by Apache Superset.
   category: dashboards
+  # No published chart yet (checked directly against the registry — anonymous
+  # `helm show chart oci://ghcr.io/projectbooth/charts/booth-superset` 403s). Listed so
+  # a user can see it exists; not installable until one exists.
   manifestPreview:
     hasOwnUi: true
     uiIntegrationMode: iframe-proxy
@@ -78,6 +97,9 @@
   icon: bar-chart
   description: Point-and-click BI dashboards, powered by Metabase.
   category: dashboards
+  # No published chart yet (checked directly against the registry — anonymous
+  # `helm show chart oci://ghcr.io/projectbooth/charts/booth-metabase` 403s). Listed so
+  # a user can see it exists; not installable until one exists.
   manifestPreview:
     hasOwnUi: true
     uiIntegrationMode: iframe-proxy
@@ -88,6 +110,8 @@
   icon: app-window
   description: Code-first dashboards and apps, powered by Streamlit.
   category: dashboards
+  chartRef: oci://ghcr.io/projectbooth/charts/booth-streamlit
+  chartVersion: "0.1.0"
   manifestPreview:
     hasOwnUi: true
     uiIntegrationMode: iframe-proxy
@@ -98,6 +122,8 @@
   icon: plug
   description: Generated REST API access to platform data.
   category: integration
+  chartRef: oci://ghcr.io/projectbooth/charts/booth-api
+  chartVersion: "0.1.0"
   manifestPreview:
     hasOwnUi: false
     navGroup: manage
@@ -107,6 +133,8 @@
   icon: zap
   description: Standalone Apache Spark compute, with no dependency on other modules.
   category: compute
+  chartRef: oci://ghcr.io/projectbooth/charts/booth-spark
+  chartVersion: "0.2.0"
   manifestPreview:
     hasOwnUi: true
     uiIntegrationMode: iframe-proxy
@@ -117,6 +145,32 @@
   icon: file-text
   description: Log search and filtering, backed by Loki, with an optional Grafana view.
   category: observability
+  chartRef: oci://ghcr.io/projectbooth/charts/booth-logging
+  chartVersion: "0.1.0"
+  manifestPreview:
+    hasOwnUi: true
+    uiIntegrationMode: native
+    navGroup: manage
+
+- id: lakehouse
+  displayName: Lakehouse
+  icon: layers
+  description: Self-hosted Apache Iceberg REST catalog (Lakekeeper) on top of booth-storage's byte storage.
+  category: data
+  chartRef: oci://ghcr.io/projectbooth/charts/booth-lakehouse
+  chartVersion: "0.1.0"
+  manifestPreview:
+    hasOwnUi: true
+    uiIntegrationMode: native
+    navGroup: manage
+
+- id: database
+  displayName: Database
+  icon: database
+  description: Per-workspace PostgreSQL databases, provisioned on demand via the credential broker.
+  category: data
+  chartRef: oci://ghcr.io/projectbooth/charts/booth-database
+  chartVersion: "0.1.0"
   manifestPreview:
     hasOwnUi: true
     uiIntegrationMode: native
