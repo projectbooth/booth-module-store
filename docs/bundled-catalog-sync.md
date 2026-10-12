@@ -46,6 +46,20 @@ A more robust shape, if/when this is worth building:
    architecture's general preference for explicit, reviewable steps over silent
    automation.
 
+## Pin constraint: the identity-keys annotation (ADR 0113)
+
+A `bundled.yaml` entry's `chartVersion` may only be pinned to a published chart version
+that carries the `booth.projectbooth.io/identity-keys` annotation
+(`contracts/module-manifest.md`'s "Chart annotation: identity keys" section). Booth-core's
+install API reads that annotation to fill in the platform's shared identity settings
+(issuer, client id, JWKS URL, groups claim, and where applicable the workload/iframe
+issuers) on install — a module installed through the Store's Install button without it
+comes up with no identity settings and does not work, exactly the failure ADR 0113 exists
+to close. `internal/catalog/bundled_identitykeys_integration_test.go`'s
+`identityKeysExemptIDs` is the one allowed exception: an entry still pinned to a
+pre-annotation version while that module's own annotation release is pending, with a
+comment to remove it once that release lands.
+
 ## Why this isn't built now
 
 No module repo has a chart or `module.yaml`-equivalent yet (`MODULE_REGISTRY.md`:
