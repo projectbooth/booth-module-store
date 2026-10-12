@@ -37,7 +37,7 @@
   description: S3-compatible, filesystem, Azure Blob, and GCS backends for platform data.
   category: data
   chartRef: oci://ghcr.io/projectbooth/charts/booth-storage
-  chartVersion: "0.1.0"
+  chartVersion: "0.1.1"
   manifestPreview:
     hasOwnUi: true
     uiIntegrationMode: native
@@ -49,7 +49,7 @@
   description: Browsable, lineage-tracked catalog of datasets, code, and dashboards.
   category: data
   chartRef: oci://ghcr.io/projectbooth/charts/booth-catalog
-  chartVersion: "0.1.0"
+  chartVersion: "0.1.1"
   manifestPreview:
     hasOwnUi: true
     uiIntegrationMode: native
@@ -61,7 +61,7 @@
   description: Dagster-backed pipeline engine with a graphical DAG builder.
   category: build
   chartRef: oci://ghcr.io/projectbooth/charts/booth-pipeline
-  chartVersion: "0.1.0"
+  chartVersion: "0.1.1"
   manifestPreview:
     hasOwnUi: true
     uiIntegrationMode: native
@@ -73,7 +73,7 @@
   description: JupyterHub-backed notebooks with per-user isolated kernels.
   category: build
   chartRef: oci://ghcr.io/projectbooth/charts/booth-notebooks
-  chartVersion: "0.1.0"
+  chartVersion: "0.1.1"
   manifestPreview:
     hasOwnUi: true
     uiIntegrationMode: iframe-proxy
@@ -123,7 +123,7 @@
   description: Generated REST API access to platform data.
   category: integration
   chartRef: oci://ghcr.io/projectbooth/charts/booth-api
-  chartVersion: "0.1.0"
+  chartVersion: "0.1.1"
   manifestPreview:
     hasOwnUi: false
     navGroup: manage
@@ -134,7 +134,7 @@
   description: Standalone Apache Spark compute, with no dependency on other modules.
   category: compute
   chartRef: oci://ghcr.io/projectbooth/charts/booth-spark
-  chartVersion: "0.2.0"
+  chartVersion: "0.2.1"
   manifestPreview:
     hasOwnUi: true
     uiIntegrationMode: iframe-proxy
@@ -146,7 +146,7 @@
   description: Log search and filtering, backed by Loki, with an optional Grafana view.
   category: observability
   chartRef: oci://ghcr.io/projectbooth/charts/booth-logging
-  chartVersion: "0.1.0"
+  chartVersion: "0.1.1"
   manifestPreview:
     hasOwnUi: true
     uiIntegrationMode: native
@@ -158,7 +158,7 @@
   description: Self-hosted Apache Iceberg REST catalog (Lakekeeper) on top of booth-storage's byte storage.
   category: data
   chartRef: oci://ghcr.io/projectbooth/charts/booth-lakehouse
-  chartVersion: "0.1.0"
+  chartVersion: "0.1.1"
   manifestPreview:
     hasOwnUi: true
     uiIntegrationMode: native
@@ -170,7 +170,7 @@
   description: Per-workspace PostgreSQL databases, provisioned on demand via the credential broker.
   category: data
   chartRef: oci://ghcr.io/projectbooth/charts/booth-database
-  chartVersion: "0.1.0"
+  chartVersion: "0.1.1"
   manifestPreview:
     hasOwnUi: true
     uiIntegrationMode: native
