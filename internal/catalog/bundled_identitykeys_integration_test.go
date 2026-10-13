@@ -17,7 +17,10 @@ import (
 // silent pass. Remove an id from this list once its chart release adds the annotation
 // (booth-architecture/decisions/0113-core-supplies-the-shared-identity-settings-to-module-installs.md).
 var identityKeysExemptIDs = map[string]bool{
-	"streamlit": true, // booth-streamlit's identity-keys annotation release is still pending (ADR 0113)
+	// booth-streamlit's identity-keys annotation shipped in its v0.1.1 release (PR #20);
+	// it's no longer exempt. Every bundled, installable chart is now expected to carry
+	// the annotation — add an id back here only if a module's chart genuinely has none
+	// yet, same as streamlit did until its release landed.
 }
 
 // TestBundled_ChartRefsExistAndCarryIdentityKeys is the network-dependent half of the
