@@ -61,7 +61,7 @@
   description: Dagster-backed pipeline engine with a graphical DAG builder.
   category: build
   chartRef: oci://ghcr.io/projectbooth/charts/booth-pipeline
-  chartVersion: "0.1.3"
+  chartVersion: "0.1.4"
   manifestPreview:
     hasOwnUi: true
     uiIntegrationMode: native
