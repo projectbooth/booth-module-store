@@ -111,7 +111,7 @@
   description: Code-first dashboards and apps, powered by Streamlit.
   category: dashboards
   chartRef: oci://ghcr.io/projectbooth/charts/booth-streamlit
-  chartVersion: "0.1.0"
+  chartVersion: "0.1.1"
   manifestPreview:
     hasOwnUi: true
     uiIntegrationMode: iframe-proxy
@@ -134,7 +134,7 @@
   description: Standalone Apache Spark compute, with no dependency on other modules.
   category: compute
   chartRef: oci://ghcr.io/projectbooth/charts/booth-spark
-  chartVersion: "0.2.1"
+  chartVersion: "0.2.2"
   manifestPreview:
     hasOwnUi: true
     uiIntegrationMode: iframe-proxy
