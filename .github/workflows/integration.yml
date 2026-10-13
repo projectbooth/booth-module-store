@@ -39,6 +39,31 @@ jobs:
       - name: Verify every bundled chartRef/chartVersion exists and carries the identity-keys annotation
         run: go test -tags integration -race -count=1 -v ./internal/catalog/... -run TestBundled_ChartRefsExistAndCarryIdentityKeys
 
+  render-guard:
+    # ARCHITECTURE.md item 68: the Install button installs a module through booth-core's
+    # install API with no hand-set values at all — core supplies only the shared
+    # identity settings a chart's own booth.projectbooth.io/identity-keys annotation
+    # maps (ADR 0113/amendment 1), nothing else. booth-catalog 0.1.1 could not be
+    # installed that way at all (a hand-made database Secret its manifest never
+    # declared) and nothing in CI caught it until someone ran `helm template` by hand.
+    # This renders every bundled chart the same way a Store install would — no values
+    # beyond the stubbed identity keys, and a kube-version/capability set offline helm
+    # can't otherwise see — so that failure mode is caught here instead of by the first
+    # real user who clicks Install. Network-dependent (pulls each chart from the real
+    # registry), so this runs here, not in ci.yml's per-push/PR, network-free unit tests.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: azure/setup-helm@v4
+
+      - name: Render every bundled chart with only the values core would supply
+        run: go test -tags integration -race -count=1 -v ./internal/catalog/... -run TestBundled_RendersWithOnlyCoreSuppliedValues
+
   kind-deploy:
     runs-on: ubuntu-24.04
     steps:
