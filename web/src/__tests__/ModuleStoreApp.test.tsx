@@ -1,7 +1,8 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ModuleStoreApp } from "../ModuleStoreApp";
+import { INSTALL_POLL_INITIAL_DELAY_MS, INSTALL_POLL_MAX_DELAY_MS, INSTALL_POLL_TIMEOUT_MS, nextInstallPollDelay } from "../installPolling";
 import type { CatalogEntry } from "../types";
 
 const bundledStorage: CatalogEntry = {
@@ -41,6 +42,7 @@ describe("ModuleStoreApp", () => {
   });
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.useRealTimers();
   });
 
   // ADR 0072 regression guard: booth-design's shell now owns outer padding around
@@ -179,11 +181,13 @@ describe("ModuleStoreApp", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1); // only the initial catalog GET so far
 
     fetchMock.mockResolvedValueOnce({ ok: true, status: 202, json: async () => undefined, text: async () => "" });
-    fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => [bundledStorage], text: async () => "" });
 
     await userEvent.click(screen.getByRole("button", { name: "Confirm install" }));
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3)); // + install POST + catalog reload
+    // ARCHITECTURE item 70: a 202 is only "accepted", not "installed" — this must not
+    // immediately reload and must not flip the button back to plain "Install".
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2)); // + install POST only, no reload yet
+    expect(screen.getByRole("button", { name: "Installing…" })).toBeDisabled();
 
     const [installUrl, installInit] = fetchMock.mock.calls[1];
     expect(installUrl).toBe("/modules/module-store/api/catalog/storage/install");
@@ -201,11 +205,107 @@ describe("ModuleStoreApp", () => {
     await userEvent.type(namespaceInput, "team-3-storage");
 
     fetchMock.mockResolvedValueOnce({ ok: true, status: 202, json: async () => undefined, text: async () => "" });
-    fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => [bundledStorage], text: async () => "" });
     await userEvent.click(screen.getByRole("button", { name: "Confirm install" }));
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     const [, installInit] = fetchMock.mock.calls[1];
     expect(JSON.parse(installInit.body)).toEqual({ namespace: "team-3-storage" });
+  });
+
+  // ARCHITECTURE item 70: core's install API accepts (202) before the module is
+  // actually registered — a `BoothModule` CR core's own list reads from appears a few
+  // seconds later. Reloading the catalog right after a 202 (the old behaviour) would
+  // still show the module as not installed and flip the button back to a clickable
+  // "Install", which let a second click send a second install that Helm applies as an
+  // upgrade (the real double-install bug seen on Database, Logging and Lakehouse).
+  it("keeps Install disabled through 202-acceptance and polls with backoff until core lists the module installed, sending no second install (ARCHITECTURE item 70)", async () => {
+    const fetchMock = mockFetch([bundledStorage]);
+    render(<ModuleStoreApp workspace="acme" role="owner" theme="light" getAccessToken={() => "test-token"} />);
+    await screen.findByText("Storage");
+
+    await userEvent.click(screen.getByRole("button", { name: "Install" }));
+    await screen.findByLabelText("Target namespace");
+
+    // Fake timers from here on: the poll loop's setTimeout backoff is scheduled the
+    // instant the install POST resolves below, so they must already be in place.
+    // fireEvent (not userEvent) for the remaining clicks: userEvent's own internals
+    // depend on real timers in ways that don't mix cleanly with vi.useFakeTimers() here;
+    // fireEvent dispatches the DOM event directly with no timer dependency of its own.
+    vi.useFakeTimers();
+
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 202, json: async () => undefined, text: async () => "" });
+    fireEvent.click(screen.getByRole("button", { name: "Confirm install" }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2); // initial GET + install POST — no reload yet
+    expect(screen.getByRole("button", { name: "Installing…" })).toBeDisabled();
+
+    // First two polls: core's list still omits the module (still not_installed).
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => [bundledStorage], text: async () => "" });
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => [bundledStorage], text: async () => "" });
+    let delay = INSTALL_POLL_INITIAL_DELAY_MS;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(delay);
+    });
+    delay = nextInstallPollDelay(delay);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(delay);
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(4); // + 2 polls
+    expect(screen.getByRole("button", { name: "Installing…" })).toBeDisabled();
+    expect(screen.getByText("Not installed")).toBeInTheDocument();
+
+    // Third poll: the module now appears installed.
+    const installedStorage: CatalogEntry = { ...bundledStorage, status: { state: "installed", health: "Healthy" } };
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => [installedStorage], text: async () => "" });
+    delay = nextInstallPollDelay(delay);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(delay);
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(screen.getByText(/Installed/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Uninstall" })).toBeInTheDocument();
+
+    // Across the whole wait, exactly one install POST was ever sent.
+    const installPosts = fetchMock.mock.calls.filter(([, init]) => (init as RequestInit)?.method === "POST");
+    expect(installPosts).toHaveLength(1);
+  });
+
+  it("shows an error instead of silently returning to Install when the module never shows up installed (timeout, ARCHITECTURE item 70)", async () => {
+    const fetchMock = mockFetch([bundledStorage]);
+    render(<ModuleStoreApp workspace="acme" role="owner" theme="light" getAccessToken={() => "test-token"} />);
+    await screen.findByText("Storage");
+
+    await userEvent.click(screen.getByRole("button", { name: "Install" }));
+    await screen.findByLabelText("Target namespace");
+
+    vi.useFakeTimers();
+
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 202, json: async () => undefined, text: async () => "" });
+    fireEvent.click(screen.getByRole("button", { name: "Confirm install" }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.getByRole("button", { name: "Installing…" })).toBeDisabled();
+
+    // Every poll from here on (the persistent mock set up by mockFetch) keeps returning
+    // the module as not_installed — core never lists it, so the wait must eventually
+    // give up rather than wait forever. The backoff caps at INSTALL_POLL_MAX_DELAY_MS
+    // per tick, so the tick that actually crosses the timeout threshold can land up to
+    // one more full capped interval past it — advance generously past that.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(INSTALL_POLL_TIMEOUT_MS + INSTALL_POLL_MAX_DELAY_MS * 2);
+    });
+
+    expect(screen.getByRole("button", { name: "Install" })).toBeEnabled();
+    expect(screen.getByText(/Timed out waiting for core to finish installing/)).toBeInTheDocument();
+
+    // Still only the one install POST, never a second — not even after giving up.
+    const installPosts = fetchMock.mock.calls.filter(([, init]) => (init as RequestInit)?.method === "POST");
+    expect(installPosts).toHaveLength(1);
   });
 });
