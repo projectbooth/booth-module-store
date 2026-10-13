@@ -123,7 +123,7 @@
   description: Generated REST API access to platform data.
   category: integration
   chartRef: oci://ghcr.io/projectbooth/charts/booth-api
-  chartVersion: "0.1.1"
+  chartVersion: "0.1.2"
   manifestPreview:
     hasOwnUi: false
     navGroup: manage
